@@ -18,7 +18,7 @@ app.get('/health', (req, res) => {
 });
 
 // Step 6+: real routes mount here (auth, properties, favorites, ...)
-// app.use('/api/auth', require('./routes/auth'));
+app.use('/api/auth', require('./routes/auth'));
 
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));
 
