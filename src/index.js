@@ -19,6 +19,17 @@ app.get('/health', (req, res) => {
 
 // Step 6+: real routes mount here (auth, properties, favorites, ...)
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/properties', require('./routes/properties'));
+app.use('/api/favorites', require('./routes/favorites'));
+app.use('/api', require('./routes/content'));
+
+app.use((req, res) => res.status(404).json({ message: 'Not found' }));
+
+// Seed demo catalog on boot when tables are empty (safe to run always).
+if (process.env.DATABASE_URL) {
+  const { seedIfEmpty } = require('./db/seed');
+  seedIfEmpty().catch((err) => console.error('seed:', err.message));
+}
 
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));
 
