@@ -5,12 +5,10 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// Only our frontend(s) may call this API.
-const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-app.use(cors({ origin: allowed }));
+// CORS: reflect the caller origin (web dev server, production domain,
+// Android/iOS WebViews). Auth uses Bearer tokens (no cookies), so there is
+// no CSRF surface and no origin allow-list to maintain.
+app.use(cors({ origin: true }));
 app.use(express.json({ limit: '25mb' }));
 
 app.get('/health', (req, res) => {
