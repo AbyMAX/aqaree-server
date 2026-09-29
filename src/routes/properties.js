@@ -192,11 +192,14 @@ router.post('/', requireAuth, upload.array('photos', 12), async (req, res) => {
   }
 });
 
-// PUT /api/properties/:id — owner only (or any signed-in user in this build)
+// PUT /api/properties/:id — owner only
 router.put('/:id', requireAuth, upload.array('photos', 12), async (req, res) => {
   try {
     const { rows: existing } = await pool.query('SELECT * FROM properties WHERE id = $1', [req.params.id]);
     if (!existing[0]) return res.status(404).json({ message: 'Property not found' });
+    if (Number(existing[0].owner_id) !== Number(req.user.id)) {
+      return res.status(403).json({ message: 'You can only edit your own listings' });
+    }
     const b = pickBody(req.body);
     const uploaded = await resolveImages(req, req.body);
     const bodyPhotos = Array.isArray(req.body.photos) ? req.body.photos : [];
@@ -223,10 +226,15 @@ router.put('/:id', requireAuth, upload.array('photos', 12), async (req, res) => 
   }
 });
 
-// DELETE /api/properties/:id — dependents first so demo listings
-// with favorites/notifications delete cleanly too.
+// DELETE /api/properties/:id — owner only. Dependents first so demo
+// listings with favorites/notifications delete cleanly too.
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
+    const { rows: existing } = await pool.query('SELECT owner_id FROM properties WHERE id = $1', [req.params.id]);
+    if (!existing[0]) return res.status(404).json({ message: 'Property not found' });
+    if (Number(existing[0].owner_id) !== Number(req.user.id)) {
+      return res.status(403).json({ message: 'You can only delete your own listings' });
+    }
     await pool.query('DELETE FROM favorites WHERE property_id = $1', [req.params.id]);
     await pool.query('DELETE FROM notifications WHERE property_id = $1', [req.params.id]);
     await pool.query('DELETE FROM properties WHERE id = $1', [req.params.id]);
