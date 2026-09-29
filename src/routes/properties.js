@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const pool = require('../db/pool');
 const { requireAuth } = require('../auth');
-const { configured, uploadBuffer } = require('../cloudinary');
+const { configured, uploadBuffer, uploadDataUrl } = require('../cloudinary');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 12 } });
@@ -137,7 +137,7 @@ function pickBody(body = {}) {
 }
 
 // Photos arrive as multipart `photos` (≤12). Data-URL strings in the JSON
-// body are also accepted (offline-created drafts).
+// body are also accepted (offline-created drafts + the app photo picker).
 async function resolveImages(req, body) {
   const urls = [];
   if (configured && req.files && req.files.length) {
@@ -147,7 +147,22 @@ async function resolveImages(req, body) {
     }
   }
   const fromBody = Array.isArray(body.photos) ? body.photos : [];
-  return [...urls, ...fromBody].slice(0, 12);
+  for (const p of fromBody) {
+    if (typeof p !== 'string' || !p) continue;
+    if (p.startsWith('data:')) {
+      if (!configured) continue;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        urls.push(await uploadDataUrl(p));
+      } catch (err) {
+        console.error('photo upload:', err.message);
+      }
+    } else {
+      urls.push(p);
+    }
+    if (urls.length >= 12) break;
+  }
+  return urls.slice(0, 12);
 }
 
 // POST /api/properties (multipart or JSON)

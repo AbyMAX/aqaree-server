@@ -27,4 +27,11 @@ function uploadBuffer(buffer) {
   });
 }
 
-module.exports = { configured, uploadBuffer };
+// Upload a data: URL straight from a JSON body (app photo picker output).
+function uploadDataUrl(dataUrl) {
+  return cloudinary.uploader
+    .upload(dataUrl, { folder: 'aqaree', resource_type: 'image' })
+    .then((result) => result.secure_url);
+}
+
+module.exports = { configured, uploadBuffer, uploadDataUrl };

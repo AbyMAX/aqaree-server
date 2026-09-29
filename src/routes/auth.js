@@ -94,21 +94,30 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// POST /api/auth/google { idToken } (or { code } legacy) -> { token, user }
+// POST /api/auth/google { idToken } or { accessToken } -> { token, user }
 router.post('/google', async (req, res) => {
   try {
-    const { idToken } = req.body || {};
-    if (!idToken || String(idToken).split('.').length !== 3) {
-      return res.status(400).json({ message: 'A Google ID token is required' });
+    const { idToken, accessToken } = req.body || {};
+    let info = null;
+    if (idToken && String(idToken).split('.').length === 3) {
+      const check = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+      if (!check.ok) return res.status(401).json({ message: 'Google sign-in failed. Please try again.' });
+      info = await check.json();
+      const expected = process.env.GOOGLE_CLIENT_ID;
+      if (expected && info.aud !== expected) {
+        return res.status(401).json({ message: 'Google sign-in failed. Please try again.' });
+      }
+    } else if (accessToken) {
+      const me = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!me.ok) return res.status(401).json({ message: 'Google sign-in failed. Please try again.' });
+      const u = await me.json();
+      info = { sub: u.sub, email: u.email, name: u.name, picture: u.picture };
+    } else {
+      return res.status(400).json({ message: 'Google credentials are required' });
     }
-    const check = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-    if (!check.ok) return res.status(401).json({ message: 'Google sign-in failed. Please try again.' });
-    const info = await check.json();
-    const expected = process.env.GOOGLE_CLIENT_ID;
-    if (expected && info.aud !== expected) {
-      return res.status(401).json({ message: 'Google sign-in failed. Please try again.' });
-    }
-    if (!info.email) return res.status(401).json({ message: 'Google sign-in failed. Please try again.' });
+    if (!info || !info.email) return res.status(401).json({ message: 'Google sign-in failed. Please try again.' });
 
     const cleanEmail = String(info.email).trim().toLowerCase();
     let { rows } = await pool.query('SELECT * FROM users WHERE google_sub = $1 OR email = $2', [

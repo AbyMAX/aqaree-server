@@ -11,7 +11,7 @@ const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173')
   .map((s) => s.trim())
   .filter(Boolean);
 app.use(cors({ origin: allowed }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '25mb' }));
 
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'aqaree-server', time: new Date().toISOString() });
