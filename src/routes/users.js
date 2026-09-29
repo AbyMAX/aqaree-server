@@ -5,6 +5,13 @@ const { requireAuth, publicUser } = require('../auth');
 const router = express.Router();
 router.use(requireAuth);
 
+// Local digits canonical form so +249…, 0… and plain digits compare equal.
+function canonicalPhone(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  if (!d) return '';
+  return d.replace(/^(249|0)/, '');
+}
+
 // PUT /api/users/me { name?, email?, avatar?, role?, phone? }
 router.put('/me', async (req, res) => {
   try {
@@ -18,7 +25,19 @@ router.put('/me', async (req, res) => {
     if (name !== undefined) set('name', String(name).slice(0, 120));
     if (avatar !== undefined) set('avatar', String(avatar).slice(0, 500000));
     if (role !== undefined) set('role', String(role).slice(0, 40));
-    if (phone !== undefined) set('phone', String(phone).replace(/\D/g, '').slice(0, 20));
+    if (phone !== undefined) {
+      const canon = canonicalPhone(phone);
+      if (canon) {
+        const { rows: taken } = await pool.query(
+          "SELECT id FROM users WHERE REGEXP_REPLACE(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), '^(249|0)', '') = $1 AND id <> $2",
+          [canon, req.user.id]
+        );
+        if (taken[0]) {
+          return res.status(400).json({ message: 'Phone number is already registered', code: 'PHONE_TAKEN' });
+        }
+      }
+      set('phone', canon);
+    }
     if (email !== undefined && String(email).includes('@')) {
       const clean = String(email).trim().toLowerCase();
       const { rows: taken } = await pool.query('SELECT id FROM users WHERE email = $1 AND id <> $2', [

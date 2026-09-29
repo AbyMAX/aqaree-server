@@ -223,11 +223,13 @@ router.put('/:id', requireAuth, upload.array('photos', 12), async (req, res) => 
   }
 });
 
-// DELETE /api/properties/:id
+// DELETE /api/properties/:id — dependents first so demo listings
+// with favorites/notifications delete cleanly too.
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    await pool.query('DELETE FROM properties WHERE id = $1', [req.params.id]);
     await pool.query('DELETE FROM favorites WHERE property_id = $1', [req.params.id]);
+    await pool.query('DELETE FROM notifications WHERE property_id = $1', [req.params.id]);
+    await pool.query('DELETE FROM properties WHERE id = $1', [req.params.id]);
     return res.json({ ok: true });
   } catch (err) {
     console.error('property delete:', err.message);
