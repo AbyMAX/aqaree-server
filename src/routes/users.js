@@ -5,10 +5,10 @@ const { requireAuth, publicUser } = require('../auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// PUT /api/users/me { name?, email?, avatar?, role? }
+// PUT /api/users/me { name?, email?, avatar?, role?, phone? }
 router.put('/me', async (req, res) => {
   try {
-    const { name, email, avatar, role } = req.body || {};
+    const { name, email, avatar, role, phone } = req.body || {};
     const fields = [];
     const vals = [];
     const set = (col, v) => {
@@ -18,6 +18,7 @@ router.put('/me', async (req, res) => {
     if (name !== undefined) set('name', String(name).slice(0, 120));
     if (avatar !== undefined) set('avatar', String(avatar).slice(0, 500000));
     if (role !== undefined) set('role', String(role).slice(0, 40));
+    if (phone !== undefined) set('phone', String(phone).replace(/\D/g, '').slice(0, 20));
     if (email !== undefined && String(email).includes('@')) {
       const clean = String(email).trim().toLowerCase();
       const { rows: taken } = await pool.query('SELECT id FROM users WHERE email = $1 AND id <> $2', [

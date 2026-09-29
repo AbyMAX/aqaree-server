@@ -11,6 +11,7 @@ function publicUser(row) {
     email: row.email || '',
     avatar: row.avatar || '',
     role: row.role || 'Landlord',
+    phone: row.phone || '',
   };
 }
 
