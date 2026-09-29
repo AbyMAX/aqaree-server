@@ -19,6 +19,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/favorites', require('./routes/favorites'));
+app.use('/api/users', require('./routes/users'));
 app.use('/api', require('./routes/content'));
 
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));
