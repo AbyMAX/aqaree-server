@@ -27,6 +27,8 @@ function shapeProperty(row) {
     amenities: row.amenities || [],
     floor: row.floor || '',
     furnished: row.furnished || '',
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
     contactName: row.contact_name || '',
     email: row.email || '',
     listingType: row.listing_type || 'Rent',
@@ -104,6 +106,11 @@ function pickBody(body = {}) {
     const n = parseInt(v, 10);
     return Number.isFinite(n) ? n : 0;
   };
+  const toCoord = (v) => {
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
   const asArray = (v) => {
     if (Array.isArray(v)) return v;
     if (typeof v === 'string') {
@@ -131,6 +138,8 @@ function pickBody(body = {}) {
     amenities: asArray(body.amenities),
     floor: body.floor != null ? String(body.floor).replace(/\D/g, '') : '',
     furnished: body.furnished === 'furnished' || body.furnished === 'unfurnished' ? body.furnished : '',
+    latitude: toCoord(body.latitude),
+    longitude: toCoord(body.longitude),
     contactName: body.contactName || body.contact_name || '',
     email: body.email || '',
     listingType: body.listingType || body.listing_type || 'Rent',
@@ -177,14 +186,14 @@ router.post('/', requireAuth, upload.array('photos', 12), async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO properties
         (owner_id, title, title_ar, location, location_ar, description, description_ar,
-         price, currency, phone, whatsapp, size, amenities, floor, furnished, contact_name, email,
+         price, currency, phone, whatsapp, size, amenities, floor, furnished, latitude, longitude, contact_name, email,
          listing_type, type, beds, baths, images)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
        RETURNING id`,
       [
         req.user.id, b.title, b.titleAr, b.location, b.locationAr, b.description,
         b.descriptionAr, b.price, b.currency, b.phone, b.whatsapp, b.size,
-        JSON.stringify(b.amenities), b.floor, b.furnished, b.contactName, b.email, b.listingType,
+        JSON.stringify(b.amenities), b.floor, b.furnished, b.latitude, b.longitude, b.contactName, b.email, b.listingType,
         b.type, b.beds, b.baths, JSON.stringify(images),
       ]
     );
@@ -213,12 +222,12 @@ router.put('/:id', requireAuth, upload.array('photos', 12), async (req, res) => 
     await pool.query(
       `UPDATE properties SET title=$1, title_ar=$2, location=$3, location_ar=$4,
         description=$5, description_ar=$6, price=$7, currency=$8, phone=$9, whatsapp=$10,
-        size=$11, amenities=$12, floor=$13, furnished=$14, contact_name=$15, email=$16, listing_type=$17,
-        type=$18, beds=$19, baths=$20, images=$21 WHERE id=$22`,
+        size=$11, amenities=$12, floor=$13, furnished=$14, latitude=$15, longitude=$16, contact_name=$17, email=$18, listing_type=$19,
+        type=$20, beds=$21, baths=$22, images=$23 WHERE id=$24`,
       [
         b.title, b.titleAr, b.location, b.locationAr, b.description, b.descriptionAr,
         b.price, b.currency, b.phone, b.whatsapp, b.size, JSON.stringify(b.amenities),
-        b.floor, b.furnished, b.contactName, b.email, b.listingType, b.type, b.beds, b.baths,
+        b.floor, b.furnished, b.latitude, b.longitude, b.contactName, b.email, b.listingType, b.type, b.beds, b.baths,
         JSON.stringify(keepImages), req.params.id,
       ]
     );
