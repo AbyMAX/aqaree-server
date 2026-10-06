@@ -201,7 +201,9 @@ async function insertProperty(cols, vals) {
     );
     return rows[0].id;
   } catch (err) {
-    const retry = err && err.code === '42703' ? dropMissing(cols, vals, err) : null;
+    // Match on the message text (not err.code — poolers/drivers don't
+    // always preserve it). The regex is specific to undefined columns.
+    const retry = dropMissing(cols, vals, err);
     if (retry) return insertProperty(retry[0], retry[1]);
     throw err;
   }
@@ -214,10 +216,7 @@ async function updateProperty(id, pairs) {
     await pool.query(`UPDATE properties SET ${set} WHERE id=$${pairs.length + 1}`, vals);
   } catch (err) {
     const cols = pairs.map(([c]) => c);
-    const retry =
-      err && err.code === '42703'
-        ? dropMissing(cols, vals.slice(0, -1), err)
-        : null;
+    const retry = dropMissing(cols, vals.slice(0, -1), err);
     if (retry) {
       return updateProperty(
         id,
