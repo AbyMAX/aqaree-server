@@ -178,14 +178,18 @@ async function resolveImages(req, body) {
   return urls.slice(0, 12);
 }
 
-// Newer columns (migrate5 floor/furnished, migrate6 lat/lng) may be
-// missing if the migrations haven't been run yet. Retry without them
-// instead of failing the whole listing.
-const NEWER_COLS = ['floor', 'furnished', 'latitude', 'longitude'];
-
-function withoutNewer(cols, vals) {
-  const keep = cols.filter((c) => !NEWER_COLS.includes(c));
-  return [keep, keep.map((c) => vals[cols.indexOf(c)])];
+// The production DB was built by hand-run migrations, so any column may
+// be missing. If Postgres complains about an undefined column, drop just
+// that column and retry (bounded by the column count) instead of 500ing.
+function dropMissing(cols, vals, err) {
+  const m = err && err.message && err.message.match(/column "([^"]+)" does not exist/);
+  if (!m || !cols.includes(m[1]) || cols.length <= 5) return null;
+  console.error(`property write without missing column "${m[1]}":`, err.message);
+  const i = cols.indexOf(m[1]);
+  return [
+    [...cols.slice(0, i), ...cols.slice(i + 1)],
+    [...vals.slice(0, i), ...vals.slice(i + 1)],
+  ];
 }
 
 async function insertProperty(cols, vals) {
@@ -197,11 +201,8 @@ async function insertProperty(cols, vals) {
     );
     return rows[0].id;
   } catch (err) {
-    if (err && err.code === '42703' && cols.some((c) => NEWER_COLS.includes(c))) {
-      console.error('insert without pending-migration columns:', err.message);
-      const [k, v] = withoutNewer(cols, vals);
-      return insertProperty(k, v);
-    }
+    const retry = err && err.code === '42703' ? dropMissing(cols, vals, err) : null;
+    if (retry) return insertProperty(retry[0], retry[1]);
     throw err;
   }
 }
@@ -212,9 +213,16 @@ async function updateProperty(id, pairs) {
   try {
     await pool.query(`UPDATE properties SET ${set} WHERE id=$${pairs.length + 1}`, vals);
   } catch (err) {
-    if (err && err.code === '42703' && pairs.some(([c]) => NEWER_COLS.includes(c))) {
-      console.error('update without pending-migration columns:', err.message);
-      return updateProperty(id, pairs.filter(([c]) => !NEWER_COLS.includes(c)));
+    const cols = pairs.map(([c]) => c);
+    const retry =
+      err && err.code === '42703'
+        ? dropMissing(cols, vals.slice(0, -1), err)
+        : null;
+    if (retry) {
+      return updateProperty(
+        id,
+        retry[0].map((c, i) => [c, retry[1][i]])
+      );
     }
     throw err;
   }
