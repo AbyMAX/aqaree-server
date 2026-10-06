@@ -13,7 +13,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.get('/health', (req, res) => {
-  res.json({ ok: true, service: 'aqaree-server', time: new Date().toISOString() });
+  res.json({ ok: true, service: 'aqaree-server', time: new Date().toISOString(), commit: String(process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7) });
 });
 
 // Step 6+: real routes mount here (auth, properties, favorites, ...)
