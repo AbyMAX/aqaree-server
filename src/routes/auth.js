@@ -9,8 +9,9 @@ const OTP_TTL_MIN = 10;
 
 const otpCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
-// POST /api/auth/register { email, password } -> creates/updates the user,
+// POST /api/auth/register { email, password } -> creates the user,
 // stores a fresh OTP and emails it. Frontend then moves to /verify-otp.
+// An already-registered email is rejected (no new account, no new OTP).
 router.post('/register', async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -18,13 +19,17 @@ router.post('/register', async (req, res) => {
     if (String(password).length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
 
     const cleanEmail = String(email).trim().toLowerCase();
+    const { rows: existing } = await pool.query('SELECT id FROM users WHERE email = $1', [cleanEmail]);
+    if (existing[0]) {
+      return res.status(409).json({ message: 'Email is already registered', code: 'EMAIL_TAKEN' });
+    }
+
     const hash = await bcrypt.hash(String(password), 10);
     const name = cleanEmail.split('@')[0].replace(/[._-]+/g, ' ').trim() || 'Guest';
 
     await pool.query(
       `INSERT INTO users (email, password_hash, name, email_verified)
-       VALUES ($1, $2, $3, FALSE)
-       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, email_verified = FALSE`,
+       VALUES ($1, $2, $3, FALSE)`,
       [cleanEmail, hash, name]
     );
     await pool.query('DELETE FROM otp_codes WHERE email = $1', [cleanEmail]);
