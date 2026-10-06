@@ -25,6 +25,8 @@ function shapeProperty(row) {
     whatsapp: row.whatsapp || '',
     size: row.size || '',
     amenities: row.amenities || [],
+    floor: row.floor || '',
+    furnished: row.furnished || '',
     contactName: row.contact_name || '',
     email: row.email || '',
     listingType: row.listing_type || 'Rent',
@@ -127,6 +129,8 @@ function pickBody(body = {}) {
     whatsapp: body.whatsapp || '',
     size: body.size != null ? String(body.size) : '',
     amenities: asArray(body.amenities),
+    floor: body.floor != null ? String(body.floor).replace(/\D/g, '') : '',
+    furnished: body.furnished === 'furnished' || body.furnished === 'unfurnished' ? body.furnished : '',
     contactName: body.contactName || body.contact_name || '',
     email: body.email || '',
     listingType: body.listingType || body.listing_type || 'Rent',
@@ -173,14 +177,14 @@ router.post('/', requireAuth, upload.array('photos', 12), async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO properties
         (owner_id, title, title_ar, location, location_ar, description, description_ar,
-         price, currency, phone, whatsapp, size, amenities, contact_name, email,
+         price, currency, phone, whatsapp, size, amenities, floor, furnished, contact_name, email,
          listing_type, type, beds, baths, images)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING id`,
       [
         req.user.id, b.title, b.titleAr, b.location, b.locationAr, b.description,
         b.descriptionAr, b.price, b.currency, b.phone, b.whatsapp, b.size,
-        JSON.stringify(b.amenities), b.contactName, b.email, b.listingType,
+        JSON.stringify(b.amenities), b.floor, b.furnished, b.contactName, b.email, b.listingType,
         b.type, b.beds, b.baths, JSON.stringify(images),
       ]
     );
@@ -209,12 +213,12 @@ router.put('/:id', requireAuth, upload.array('photos', 12), async (req, res) => 
     await pool.query(
       `UPDATE properties SET title=$1, title_ar=$2, location=$3, location_ar=$4,
         description=$5, description_ar=$6, price=$7, currency=$8, phone=$9, whatsapp=$10,
-        size=$11, amenities=$12, contact_name=$13, email=$14, listing_type=$15,
-        type=$16, beds=$17, baths=$18, images=$19 WHERE id=$20`,
+        size=$11, amenities=$12, floor=$13, furnished=$14, contact_name=$15, email=$16, listing_type=$17,
+        type=$18, beds=$19, baths=$20, images=$21 WHERE id=$22`,
       [
         b.title, b.titleAr, b.location, b.locationAr, b.description, b.descriptionAr,
         b.price, b.currency, b.phone, b.whatsapp, b.size, JSON.stringify(b.amenities),
-        b.contactName, b.email, b.listingType, b.type, b.beds, b.baths,
+        b.floor, b.furnished, b.contactName, b.email, b.listingType, b.type, b.beds, b.baths,
         JSON.stringify(keepImages), req.params.id,
       ]
     );
