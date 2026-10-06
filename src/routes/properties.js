@@ -250,7 +250,7 @@ router.post('/', requireAuth, upload.array('photos', 12), async (req, res) => {
     return res.status(201).json(shapeProperty(full[0]));
   } catch (err) {
     console.error('property create:', err.message);
-    return res.status(500).json({ message: 'Could not create listing', diag: String((err && err.message) || err).slice(0, 300) });
+    return res.status(500).json({ message: 'Could not create listing' });
   }
 });
 
