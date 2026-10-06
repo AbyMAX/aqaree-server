@@ -178,26 +178,67 @@ async function resolveImages(req, body) {
   return urls.slice(0, 12);
 }
 
+// Newer columns (migrate5 floor/furnished, migrate6 lat/lng) may be
+// missing if the migrations haven't been run yet. Retry without them
+// instead of failing the whole listing.
+const NEWER_COLS = ['floor', 'furnished', 'latitude', 'longitude'];
+
+function withoutNewer(cols, vals) {
+  const keep = cols.filter((c) => !NEWER_COLS.includes(c));
+  return [keep, keep.map((c) => vals[cols.indexOf(c)])];
+}
+
+async function insertProperty(cols, vals) {
+  const ph = cols.map((_, i) => `$${i + 1}`).join(',');
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO properties (${cols.join(', ')}) VALUES (${ph}) RETURNING id`,
+      vals
+    );
+    return rows[0].id;
+  } catch (err) {
+    if (err && err.code === '42703' && cols.some((c) => NEWER_COLS.includes(c))) {
+      console.error('insert without pending-migration columns:', err.message);
+      const [k, v] = withoutNewer(cols, vals);
+      return insertProperty(k, v);
+    }
+    throw err;
+  }
+}
+
+async function updateProperty(id, pairs) {
+  const set = pairs.map(([c], i) => `${c}=$${i + 1}`).join(', ');
+  const vals = [...pairs.map(([, v]) => v), id];
+  try {
+    await pool.query(`UPDATE properties SET ${set} WHERE id=$${pairs.length + 1}`, vals);
+  } catch (err) {
+    if (err && err.code === '42703' && pairs.some(([c]) => NEWER_COLS.includes(c))) {
+      console.error('update without pending-migration columns:', err.message);
+      return updateProperty(id, pairs.filter(([c]) => !NEWER_COLS.includes(c)));
+    }
+    throw err;
+  }
+}
+
 // POST /api/properties (multipart or JSON)
 router.post('/', requireAuth, upload.array('photos', 12), async (req, res) => {
   try {
     const b = pickBody(req.body);
     const images = await resolveImages(req, req.body);
-    const { rows } = await pool.query(
-      `INSERT INTO properties
-        (owner_id, title, title_ar, location, location_ar, description, description_ar,
-         price, currency, phone, whatsapp, size, amenities, floor, furnished, latitude, longitude, contact_name, email,
-         listing_type, type, beds, baths, images)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
-       RETURNING id`,
-      [
-        req.user.id, b.title, b.titleAr, b.location, b.locationAr, b.description,
-        b.descriptionAr, b.price, b.currency, b.phone, b.whatsapp, b.size,
-        JSON.stringify(b.amenities), b.floor, b.furnished, b.latitude, b.longitude, b.contactName, b.email, b.listingType,
-        b.type, b.beds, b.baths, JSON.stringify(images),
-      ]
-    );
-    const { rows: full } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [rows[0].id]);
+    const cols = [
+      'owner_id', 'title', 'title_ar', 'location', 'location_ar', 'description',
+      'description_ar', 'price', 'currency', 'phone', 'whatsapp', 'size',
+      'amenities', 'floor', 'furnished', 'latitude', 'longitude', 'contact_name', 'email',
+      'listing_type', 'type', 'beds', 'baths', 'images',
+    ];
+    const vals = [
+      req.user.id, b.title, b.titleAr, b.location, b.locationAr, b.description,
+      b.descriptionAr, b.price, b.currency, b.phone, b.whatsapp, b.size,
+      JSON.stringify(b.amenities), b.floor, b.furnished, b.latitude, b.longitude, b.contactName, b.email, b.listingType,
+      b.type, b.beds, b.baths, JSON.stringify(images),
+    ];
+    const id = await insertProperty(cols, vals);
+    const { rows: full } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [id]);
     return res.status(201).json(shapeProperty(full[0]));
   } catch (err) {
     console.error('property create:', err.message);
@@ -216,21 +257,25 @@ router.put('/:id', requireAuth, upload.array('photos', 12), async (req, res) => 
     const b = pickBody(req.body);
     const uploaded = await resolveImages(req, req.body);
     const bodyPhotos = Array.isArray(req.body.photos) ? req.body.photos : [];
-    const images = [...uploaded, ...bodyPhotos].slice(0, 12);
-    const keepImages = uploaded.length || bodyPhotos.length ? images : existing[0].images;
+    // resolveImages already processed body photos (uploaded data-URLs to
+    // Cloudinary, passed plain URLs through) — use it directly instead
+    // of merging the raw body photos a second time.
+    const images = uploaded.length || bodyPhotos.length ? uploaded : existing[0].images;
+    const keepImages = Array.isArray(images) ? images : existing[0].images;
 
-    await pool.query(
-      `UPDATE properties SET title=$1, title_ar=$2, location=$3, location_ar=$4,
-        description=$5, description_ar=$6, price=$7, currency=$8, phone=$9, whatsapp=$10,
-        size=$11, amenities=$12, floor=$13, furnished=$14, latitude=$15, longitude=$16, contact_name=$17, email=$18, listing_type=$19,
-        type=$20, beds=$21, baths=$22, images=$23 WHERE id=$24`,
-      [
-        b.title, b.titleAr, b.location, b.locationAr, b.description, b.descriptionAr,
-        b.price, b.currency, b.phone, b.whatsapp, b.size, JSON.stringify(b.amenities),
-        b.floor, b.furnished, b.latitude, b.longitude, b.contactName, b.email, b.listingType, b.type, b.beds, b.baths,
-        JSON.stringify(keepImages), req.params.id,
-      ]
-    );
+    await updateProperty(req.params.id, [
+      ['title', b.title], ['title_ar', b.titleAr], ['location', b.location],
+      ['location_ar', b.locationAr], ['description', b.description],
+      ['description_ar', b.descriptionAr], ['price', b.price], ['currency', b.currency],
+      ['phone', b.phone], ['whatsapp', b.whatsapp], ['size', b.size],
+      ['amenities', JSON.stringify(b.amenities)],
+      ['floor', b.floor], ['furnished', b.furnished],
+      ['latitude', b.latitude], ['longitude', b.longitude],
+      ['contact_name', b.contactName], ['email', b.email],
+      ['listing_type', b.listingType], ['type', b.type],
+      ['beds', b.beds], ['baths', b.baths],
+      ['images', JSON.stringify(keepImages)],
+    ]);
     const { rows: full } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [req.params.id]);
     return res.json(shapeProperty(full[0]));
   } catch (err) {
