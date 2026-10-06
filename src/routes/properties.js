@@ -182,7 +182,8 @@ async function resolveImages(req, body) {
 // be missing. If Postgres complains about an undefined column, drop just
 // that column and retry (bounded by the column count) instead of 500ing.
 function dropMissing(cols, vals, err) {
-  const m = err && err.message && err.message.match(/column "([^"]+)" does not exist/);
+  // Postgres says: column "X" of relation "Y" does not exist
+  const m = err && err.message && err.message.match(/column "([^"]+)"/);
   if (!m || !cols.includes(m[1]) || cols.length <= 5) return null;
   console.error(`property write without missing column "${m[1]}":`, err.message);
   const i = cols.indexOf(m[1]);
