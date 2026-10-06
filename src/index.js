@@ -9,7 +9,8 @@ const PORT = process.env.PORT || 8000;
 // Android/iOS WebViews). Auth uses Bearer tokens (no cookies), so there is
 // no CSRF surface and no origin allow-list to maintain.
 app.use(cors({ origin: true }));
-app.use(express.json({ limit: '25mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'aqaree-server', time: new Date().toISOString() });
