@@ -10,6 +10,11 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 // Same type mapping the app's filter screen uses.
 const TYPE_MAP = { Apartments: 'Apartment', Condominiums: 'Condo', Houses: 'House' };
 
+// Approximate FX to SDG for price-range filtering only (never displayed).
+// Compared magnitudes are orders apart, so rough rates filter correctly.
+const FX_TO_SDG = { SDG: 1, USD: 2500, EGP: 50 };
+const PRICE_SDG = `p.price * CASE p.currency WHEN 'USD' THEN ${FX_TO_SDG.USD} WHEN 'EGP' THEN ${FX_TO_SDG.EGP} ELSE 1 END`;
+
 function shapeProperty(row) {
   return {
     id: row.id,
@@ -50,10 +55,10 @@ const WITH_OWNER = `
          u.email AS owner_email, u.role AS owner_role
   FROM properties p LEFT JOIN users u ON u.id = p.owner_id`;
 
-// GET /api/properties?q=&sort=&min=&max=&type=&beds=&baths=
+// GET /api/properties?q=&sort=&min=&max=&type=&beds=&baths=&cur=
 router.get('/', async (req, res) => {
   try {
-    const { q, sort, min, max, type, beds, baths } = req.query;
+    const { q, sort, min, max, type, beds, baths, cur } = req.query;
     const conds = [];
     const vals = [];
     const add = (sql, v) => {
@@ -66,8 +71,10 @@ router.get('/', async (req, res) => {
     if (beds === '5+') conds.push('p.beds >= 5');
     if (baths && baths !== '5+') add('p.baths = ?', Number(baths));
     if (baths === '5+') conds.push('p.baths >= 5');
-    if (min) add('p.price >= ?', Number(min));
-    if (max) add('p.price <= ?', Number(max));
+    // Compare in SDG so a USD/EGP price can't slip past an SDG range.
+    const fRate = FX_TO_SDG[cur] || 1;
+    if (min) add(`${PRICE_SDG} >= ?`, Number(min) * fRate);
+    if (max) add(`${PRICE_SDG} <= ?`, Number(max) * fRate);
     if (q) {
       vals.push(`%${q}%`);
       const n = vals.length;
