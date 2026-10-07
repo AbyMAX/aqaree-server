@@ -12,6 +12,7 @@ function publicUser(row) {
     avatar: row.avatar || '',
     role: row.role || 'Landlord',
     phone: row.phone || '',
+    whatsapp: row.whatsapp || '',
   };
 }
 

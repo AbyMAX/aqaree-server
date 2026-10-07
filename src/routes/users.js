@@ -12,10 +12,10 @@ function canonicalPhone(v) {
   return d.replace(/^(249|0)/, '');
 }
 
-// PUT /api/users/me { name?, email?, avatar?, role?, phone? }
+// PUT /api/users/me { name?, email?, avatar?, role?, phone?, whatsapp? }
 router.put('/me', async (req, res) => {
   try {
-    const { name, email, avatar, role, phone } = req.body || {};
+    const { name, email, avatar, role, phone, whatsapp } = req.body || {};
     const fields = [];
     const vals = [];
     const set = (col, v) => {
@@ -38,6 +38,7 @@ router.put('/me', async (req, res) => {
       }
       set('phone', canon);
     }
+    if (whatsapp !== undefined) set('whatsapp', canonicalPhone(whatsapp));
     if (email !== undefined && String(email).includes('@')) {
       const clean = String(email).trim().toLowerCase();
       const { rows: taken } = await pool.query('SELECT id FROM users WHERE email = $1 AND id <> $2', [
