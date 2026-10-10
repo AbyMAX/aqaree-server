@@ -32,6 +32,20 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/notifications/unread-count -> { count } (cheap badge poll)
+router.get('/unread-count', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM notifications WHERE user_id = $1 AND is_read = FALSE',
+      [req.user.id]
+    );
+    return res.json({ count: rows[0].n });
+  } catch (err) {
+    console.error('notifications count:', err.message);
+    return res.status(500).json({ message: 'Could not load notifications' });
+  }
+});
+
 // PUT /api/notifications/read -> mark all mine as read
 router.put('/read', async (req, res) => {
   try {
@@ -40,6 +54,28 @@ router.put('/read', async (req, res) => {
   } catch (err) {
     console.error('notifications read:', err.message);
     return res.status(500).json({ message: 'Could not update notifications' });
+  }
+});
+
+// DELETE /api/notifications/:id -> dismiss one of mine
+router.delete('/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM notifications WHERE user_id = $1 AND id = $2', [req.user.id, req.params.id]);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('notifications delete:', err.message);
+    return res.status(500).json({ message: 'Could not delete notification' });
+  }
+});
+
+// DELETE /api/notifications -> clear all mine
+router.delete('/', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM notifications WHERE user_id = $1', [req.user.id]);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('notifications clear:', err.message);
+    return res.status(500).json({ message: 'Could not clear notifications' });
   }
 });
 
