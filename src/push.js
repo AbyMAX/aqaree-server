@@ -31,7 +31,11 @@ function fcm() {
 async function pushToUser(userId, { title, body, data }) {
   try {
     const a = fcm();
-    if (!a || !userId) return { sent: 0, failed: 0, skipped: true };
+    if (!a) return { sent: 0, failed: 0, skipped: 'no-fcm-key' };
+    if (!userId) return { sent: 0, failed: 0, skipped: 'no-user' };
+    const { rows } = await pool.query('SELECT token FROM user_devices WHERE user_id = $1', [userId]);
+    const tokens = rows.map((r) => r.token).filter(Boolean);
+    if (!tokens.length) return { sent: 0, failed: 0, skipped: 'no-tokens', tokenCount: rows.length };
     const { rows } = await pool.query('SELECT token FROM user_devices WHERE user_id = $1', [userId]);
     const tokens = rows.map((r) => r.token).filter(Boolean);
     if (!tokens.length) return { sent: 0, failed: 0, skipped: true };
