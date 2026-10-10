@@ -9,7 +9,16 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 12 } });
 
 // Same type mapping the app's filter screen uses.
-const TYPE_MAP = { Apartments: 'Apartment', Condominiums: 'Condo', Houses: 'House' };
+const TYPE_MAP = {
+  Apartments: 'Apartment',
+  Condominiums: 'Condo',
+  Houses: 'House',
+  'Shop-houses': 'Shop',
+  Shops: 'Shop',
+  Warehouses: 'Warehouse',
+  Villas: 'Villa',
+  Offices: 'Office',
+};
 
 // Approximate FX to SDG for price-range filtering only (never displayed).
 // Compared magnitudes are orders apart, so rough rates filter correctly.
