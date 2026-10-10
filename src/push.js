@@ -26,24 +26,28 @@ function fcm() {
 }
 
 // Push a notification + data payload to all of a user's devices.
+// Returns a summary (also surfaced on the admin response) so senders
+// can tell a bad key apart from simply having no devices.
 async function pushToUser(userId, { title, body, data }) {
   try {
     const a = fcm();
-    if (!a || !userId) return;
+    if (!a || !userId) return { sent: 0, failed: 0, skipped: true };
     const { rows } = await pool.query('SELECT token FROM user_devices WHERE user_id = $1', [userId]);
     const tokens = rows.map((r) => r.token).filter(Boolean);
-    if (!tokens.length) return;
+    if (!tokens.length) return { sent: 0, failed: 0, skipped: true };
     const strData = {};
     Object.entries(data || {}).forEach(([k, v]) => {
       strData[k] = String(v);
     });
-    await a.messaging().sendEachForMulticast({
+    const res = await a.messaging().sendEachForMulticast({
       tokens,
       notification: { title: String(title || ''), body: String(body || '') },
       data: strData,
     });
+    return { sent: res.successCount || 0, failed: res.failureCount || 0 };
   } catch (err) {
     console.error('push:', err.message);
+    return { sent: 0, failed: 0, error: String(err.message).slice(0, 160) };
   }
 }
 

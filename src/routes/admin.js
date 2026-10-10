@@ -254,6 +254,7 @@ router.put('/properties/:id', async (req, res) => {
     ];
     await props.updateProperty(req.params.id, pairs);
     // Notify the owner when moderation flips the listing's fate.
+    let push = null;
     try {
       const prevStatus = prev.status || 'approved';
       if (b.status && (b.status === 'approved' || b.status === 'rejected') && b.status !== prevStatus && prev.owner_id) {
@@ -262,17 +263,17 @@ router.put('/properties/:id', async (req, res) => {
            VALUES ($1, $2, $3, $4, $5)`,
           [prev.owner_id, b.status, prev.id, prev.title || '', prev.title_ar || '']
         );
-        pushToUser(prev.owner_id, {
+        push = await pushToUser(prev.owner_id, {
           title: b.status === 'approved' ? 'تم اضافة منشورك بنجاح' : 'لم تتم الموافقة على منشورك',
           body: prev.title || '',
           data: { propertyId: prev.id, route: `/property/${prev.id}`, type: b.status },
-        }).catch(() => {});
+        });
       }
     } catch (notifyErr) {
       console.error('moderation notify:', notifyErr.message);
     }
     const { rows: full } = await pool.query('SELECT * FROM properties WHERE id = $1', [req.params.id]);
-    return res.json({ ok: true, id: full[0].id });
+    return res.json({ ok: true, id: full[0].id, push: push || undefined });
   } catch (err) {
     console.error('admin property update:', err.message);
     return res.status(500).json({ message: 'Could not save listing' });
