@@ -7,21 +7,58 @@ let admin = null;
 let warned = false;
 
 function fcm() {
-  if (admin) return admin;
+  const st = initFcm();
+  return st.admin;
+}
+
+// Shared init with per-step diagnostics (safe to expose: no secrets).
+function initFcm() {
+  if (admin) return { admin, steps: { cached: true } };
+  const steps = {};
   try {
+    let sdk;
+    try {
+      // eslint-disable-next-line global-require
+      sdk = require('firebase-admin');
+      steps.sdkLoad = 'ok';
+    } catch (e) {
+      steps.sdkLoad = String((e && e.message) || e).slice(0, 160);
+      return { admin: null, steps };
+    }
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (!raw) return null;
-    const creds = JSON.parse(raw);
-    // eslint-disable-next-line global-require
-    admin = require('firebase-admin');
-    admin.initializeApp({ credential: admin.credential.cert(creds) });
-    return admin;
+    if (!raw) {
+      steps.key = 'missing';
+      return { admin: null, steps };
+    }
+    let creds;
+    try {
+      creds = JSON.parse(raw);
+      steps.parse = 'ok';
+    } catch (e) {
+      steps.parse = String((e && e.message) || e).slice(0, 160);
+      return { admin: null, steps };
+    }
+    if (!creds.private_key || !creds.client_email) {
+      steps.fields = 'missing';
+      return { admin: null, steps };
+    }
+    try {
+      admin = sdk;
+      admin.initializeApp({ credential: admin.credential.cert(creds) });
+      steps.init = 'ok';
+      return { admin, steps };
+    } catch (e) {
+      admin = null;
+      steps.init = String((e && e.message) || e).slice(0, 200);
+      return { admin: null, steps };
+    }
   } catch (err) {
     if (!warned) {
       warned = true;
       console.error('[fcm] disabled:', err.message);
     }
-    return null;
+    steps.fatal = String((err && err.message) || err).slice(0, 160);
+    return { admin: null, steps };
   }
 }
 
@@ -52,4 +89,4 @@ async function pushToUser(userId, { title, body, data }) {
   }
 }
 
-module.exports = { pushToUser };
+module.exports = { pushToUser, initFcm };

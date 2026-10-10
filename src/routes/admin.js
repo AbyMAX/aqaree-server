@@ -76,16 +76,19 @@ router.get('/fcm-status', async (req, res) => {
     } catch {
       sdk = false;
     }
+    // eslint-disable-next-line global-require
+    const { initFcm } = require('../push');
+    const { steps } = initFcm();
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT || '';
-    if (!raw) return res.json({ configured: false, reason: 'missing', sdk, node });
+    if (!raw) return res.json({ configured: false, reason: 'missing', sdk, node, steps });
     try {
       const j = JSON.parse(raw);
       if (!j.private_key || !j.client_email) {
-        return res.json({ configured: false, parseOk: true, reason: 'missing-fields', sdk, node });
+        return res.json({ configured: false, parseOk: true, reason: 'missing-fields', sdk, node, steps });
       }
-      return res.json({ configured: true, parseOk: true, projectId: j.project_id || '', sdk, node });
+      return res.json({ configured: !!steps.init, parseOk: true, projectId: j.project_id || '', sdk, node, steps });
     } catch {
-      return res.json({ configured: false, parseOk: false, reason: 'bad-json', sdk, node });
+      return res.json({ configured: false, parseOk: false, reason: 'bad-json', sdk, node, steps });
     }
   } catch (err) {
     console.error('admin fcm-status:', err.message);
