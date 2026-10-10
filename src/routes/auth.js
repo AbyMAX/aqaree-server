@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db/pool');
 const { publicUser, signToken } = require('../auth');
 const { sendOtpEmail } = require('../mail');
+const { loginLimiter, registerLimiter, verifyLimiter, resendLimiter, googleLimiter } = require('../rateLimit');
 
 const router = express.Router();
 const OTP_TTL_MIN = 10;
@@ -12,7 +13,7 @@ const otpCode = () => String(Math.floor(100000 + Math.random() * 900000));
 // POST /api/auth/register { email, password } -> creates the user,
 // stores a fresh OTP and emails it. Frontend then moves to /verify-otp.
 // An already-registered email is rejected (no new account, no new OTP).
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
@@ -47,7 +48,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/verify-otp { code } -> marks the matching email verified.
-router.post('/verify-otp', async (req, res) => {
+router.post('/verify-otp', verifyLimiter, async (req, res) => {
   try {
     const { code, email } = req.body || {};
     if (!code) return res.status(400).json({ message: 'Code is required' });
@@ -79,7 +80,7 @@ router.post('/verify-otp', async (req, res) => {
 
 // POST /api/auth/resend-otp { email } -> fresh OTP for unverified accounts.
 // Throttled: at most one code per minute per email.
-router.post('/resend-otp', async (req, res) => {
+router.post('/resend-otp', resendLimiter, async (req, res) => {
   try {
     const email = String((req.body || {}).email || '').trim().toLowerCase();
     if (!email) return res.status(400).json({ message: 'Email is required' });
@@ -113,7 +114,7 @@ router.post('/resend-otp', async (req, res) => {
 // POST /api/auth/login { email, password } -> { token, user }
 // Unverified emails are rejected: backing out of the OTP screen and
 // logging in directly must never grant a session.
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
@@ -138,7 +139,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/google { idToken } or { accessToken } -> { token, user }
-router.post('/google', async (req, res) => {
+router.post('/google', googleLimiter, async (req, res) => {
   try {
     const { idToken, accessToken } = req.body || {};
     let info = null;

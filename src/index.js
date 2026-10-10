@@ -9,6 +9,9 @@ const PORT = process.env.PORT || 8000;
 // CORS: reflect the caller origin (web dev server, production domain,
 // Android/iOS WebViews). Auth uses Bearer tokens (no cookies), so there is
 // no CSRF surface and no origin allow-list to maintain.
+// Behind Render's reverse proxy: trust it for correct client IPs
+// (rate limiting and logging depend on this).
+app.set('trust proxy', 1);
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -22,7 +25,9 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/favorites', require('./routes/favorites'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api', require('./routes/content'));
 
 // Android App Link verification for shared listing URLs.
