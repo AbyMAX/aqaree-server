@@ -63,6 +63,27 @@ function adminUser(row) {
   };
 }
 
+// GET /api/admin/fcm-status -> whether the push key is present and
+// well-formed (never returns the secret itself).
+router.get('/fcm-status', async (req, res) => {
+  try {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT || '';
+    if (!raw) return res.json({ configured: false, reason: 'missing' });
+    try {
+      const j = JSON.parse(raw);
+      if (!j.private_key || !j.client_email) {
+        return res.json({ configured: false, parseOk: true, reason: 'missing-fields' });
+      }
+      return res.json({ configured: true, parseOk: true, projectId: j.project_id || '' });
+    } catch {
+      return res.json({ configured: false, parseOk: false, reason: 'bad-json' });
+    }
+  } catch (err) {
+    console.error('admin fcm-status:', err.message);
+    return res.status(500).json({ message: 'Could not check push status' });
+  }
+});
+
 // GET /api/admin/stats -> table counts.
 router.get('/stats', async (req, res) => {
   try {
