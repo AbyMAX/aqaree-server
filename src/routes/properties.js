@@ -100,8 +100,26 @@ const WITH_OWNER = `
   FROM properties p LEFT JOIN users u ON u.id = p.owner_id`;
 
 // GET /api/properties?q=&sort=&min=&max=&type=&beds=&baths=&cur=
+// ?mine=1 returns the caller's own listings in any status (dashboard);
+// everything else is approved-only.
 router.get('/', publicLimiter, async (req, res) => {
   try {
+    if (req.query.mine) {
+      let uid = null;
+      try {
+        const h = req.headers.authorization || '';
+        const t = h.startsWith('Bearer ') ? h.slice(7) : null;
+        if (t) uid = Number(jwt.verify(t, JWT_SECRET).id);
+      } catch {
+        /* ignore */
+      }
+      if (!uid) return res.status(401).json({ message: 'Login required' });
+      const { rows } = await pool.query(
+        `${WITH_OWNER} WHERE p.owner_id = $1 ORDER BY p.id DESC LIMIT 200`,
+        [uid]
+      );
+      return res.json(rows.map(shapeProperty));
+    }
     const { q, sort, min, max, type, beds, baths, cur } = req.query;
     const conds = [];
     const vals = [];
@@ -129,15 +147,10 @@ router.get('/', publicLimiter, async (req, res) => {
     if (sort === 'Lowest Price') order = 'p.price ASC';
     else if (sort === 'Highest Price') order = 'p.price DESC';
 
-    // Moderation: public sees approved listings; owners also see their own.
+    // Moderation: public feeds are approved-only. Owners see their own
+    // pending listings via ?mine=1 (dashboard) and the detail page.
     if (await hasStatusCol()) {
-      const uid = viewerId(req);
-      if (uid) {
-        vals.push(uid);
-        conds.push(`(p.status = 'approved' OR p.owner_id = $${vals.length})`);
-      } else {
-        conds.push(`p.status = 'approved'`);
-      }
+      conds.push(`p.status = 'approved'`);
     }
 
     const { rows } = await pool.query(
