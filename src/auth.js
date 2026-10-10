@@ -33,4 +33,21 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { publicUser, signToken, requireAuth };
+// Admin gate: emails listed in ADMIN_EMAILS (Render env, comma-separated).
+// No DB flag, so there's no chicken-and-egg on first setup.
+function adminEmails() {
+  return String(process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function requireAdmin(req, res, next) {
+  const email = String((req.user && req.user.email) || '').toLowerCase();
+  if (!email || !adminEmails().includes(email)) {
+    return res.status(403).json({ message: 'Admin access required', code: 'NOT_ADMIN' });
+  }
+  return next();
+}
+
+module.exports = { publicUser, signToken, requireAuth, requireAdmin };

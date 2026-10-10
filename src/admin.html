@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aqaree Admin</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #131316; color: #fff; min-height: 100vh; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; }
+  .muted { color: #9A9AA5; font-size: 13px; }
+  .card { background: #1F1F24; border-radius: 14px; padding: 20px; margin-top: 16px; }
+  input, select, textarea { width: 100%; background: #131316; border: 1px solid #33333B; color: #fff; border-radius: 10px; padding: 10px 12px; font-size: 14px; outline: none; }
+  label { display: block; font-size: 12px; color: #9A9AA5; margin: 12px 0 4px; }
+  button { cursor: pointer; font: inherit; }
+  .btn { background: #1D4ED8; color: #fff; border: 0; border-radius: 10px; padding: 12px 18px; font-weight: 700; }
+  .btn:disabled { opacity: .6; }
+  .btn-ghost { background: transparent; color: #8AADF8; border: 1px solid #1D4ED8; border-radius: 10px; padding: 8px 14px; font-weight: 600; font-size: 13px; }
+  .btn-danger { background: transparent; color: #ff7b7b; border: 1px solid #5a2b2b; border-radius: 10px; padding: 8px 14px; font-weight: 600; font-size: 13px; }
+  .err { color: #ff7b7b; font-size: 13px; margin-top: 10px; }
+  .tabs { display: flex; gap: 8px; margin-top: 20px; }
+  .tab { flex: 1; background: #1F1F24; border: 0; color: #9A9AA5; padding: 12px; border-radius: 10px; font-weight: 700; }
+  .tab.on { background: #1D4ED8; color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #33333B; vertical-align: top; }
+  th { color: #9A9AA5; font-weight: 600; }
+  .row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .row input { flex: 1; }
+  .stats { display: flex; gap: 12px; }
+  .stat { flex: 1; background: #1F1F24; border-radius: 14px; padding: 18px; text-align: center; }
+  .stat b { font-size: 26px; display: block; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+  .modal { background: #1F1F24; border-radius: 20px 20px 0 0; width: 100%; max-width: 640px; max-height: 88vh; overflow-y: auto; padding: 22px; }
+  .thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; }
+  .thumb { position: relative; }
+  .thumb button { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: #ff5b5b; color: #fff; font-size: 12px; line-height: 1; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #33333B; color: #C9C9D1; }
+  .pill.ok { background: #0f5132; color: #7dffa8; }
+  @media (max-width: 700px) { table, thead { display: block; } tr { display: block; border-bottom: 2px solid #33333B; padding: 6px 0; } td, th { display: flex; justify-content: space-between; border: 0; padding: 5px 8px; } td::before { content: attr(data-l); color: #9A9AA5; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div><h1>Aqaree Admin</h1><div class="muted" id="who"></div></div>
+    <button class="btn-ghost" id="logoutBtn" style="display:none">Log out</button>
+  </div>
+
+  <div class="card" id="loginCard">
+    <h1 style="font-size:18px">Sign in</h1>
+    <p class="muted">Use an admin account (email listed in ADMIN_EMAILS).</p>
+    <label>Email</label><input id="email" type="email" autocomplete="username">
+    <label>Password</label><input id="pass" type="password" autocomplete="current-password">
+    <div style="margin-top:14px"><button class="btn" id="loginBtn">Log in</button></div>
+    <div class="err" id="loginErr"></div>
+  </div>
+
+  <div id="panel" style="display:none">
+    <div class="tabs">
+      <button class="tab on" data-tab="stats">Overview</button>
+      <button class="tab" data-tab="users">Users</button>
+      <button class="tab" data-tab="props">Listings</button>
+    </div>
+
+    <div id="tab-stats">
+      <div class="stats" style="margin-top:16px">
+        <div class="stat"><b id="stUsers">–</b><span class="muted">users</span></div>
+        <div class="stat"><b id="stProps">–</b><span class="muted">listings</span></div>
+        <div class="stat"><b id="stFavs">–</b><span class="muted">favorites</span></div>
+      </div>
+    </div>
+
+    <div id="tab-users" style="display:none">
+      <div class="card">
+        <div class="row"><input id="uq" placeholder="Search email or name…"><button class="btn" id="uSearch">Search</button></div>
+        <div style="overflow-x:auto"><table><thead><tr><th>ID</th><th>User</th><th>Contact</th><th>Role</th><th>Verified</th><th></th></tr></thead><tbody id="uBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="tab-props" style="display:none">
+      <div class="card">
+        <div class="row"><input id="pq" placeholder="Search title or location…"><button class="btn" id="pSearch">Search</button></div>
+        <div style="overflow-x:auto"><table><thead><tr><th>ID</th><th>Listing</th><th>Price</th><th>Owner</th><th></th></tr></thead><tbody id="pBody"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const token = () => sessionStorage.getItem('aqaree-admin-token') || '';
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token(), ...(opts.headers || {}) },
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.message || ('Request failed (' + r.status + ')'));
+  return j;
+}
+
+async function doLogin() {
+  $('loginErr').textContent = '';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: $('email').value.trim(), password: $('pass').value }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.message || 'Login failed');
+    sessionStorage.setItem('aqaree-admin-token', j.token);
+    await api('/api/admin/stats'); // proves admin rights
+    showPanel(j.user);
+  } catch (e) {
+    $('loginErr').textContent = e.message;
+  }
+}
+
+function showPanel(user) {
+  $('loginCard').style.display = 'none';
+  $('panel').style.display = '';
+  $('logoutBtn').style.display = '';
+  $('who').textContent = user ? user.email : '';
+  loadStats();
+  loadUsers();
+  loadProps();
+}
+
+function logout() {
+  sessionStorage.removeItem('aqaree-admin-token');
+  location.reload();
+}
+
+document.querySelectorAll('.tab').forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on');
+    ['stats', 'users', 'props'].forEach((k) => ($('tab-' + k).style.display = b.dataset.tab === k ? '' : 'none'));
+  };
+});
+
+async function loadStats() {
+  try {
+    const s = await api('/api/admin/stats');
+    $('stUsers').textContent = s.users;
+    $('stProps').textContent = s.properties;
+    $('stFavs').textContent = s.favorites;
+  } catch (e) { /* ignore */ }
+}
+
+async function loadUsers() {
+  const q = $('uq').value.trim();
+  const list = await api('/api/admin/users?q=' + encodeURIComponent(q)).catch((e) => {
+    $('uBody').innerHTML = `<tr><td>${esc(e.message)}</td></tr>`;
+    return null;
+  });
+  if (!list) return;
+  $('uBody').innerHTML = list.map((u) => `<tr>
+    <td data-l="ID">${u.id}</td>
+    <td data-l="User"><b>${esc(u.name) || '—'}</b><br><span class="muted">${esc(u.email)}</span></td>
+    <td data-l="Contact"><span dir="ltr">${esc(u.phone) || '—'}</span><br><span class="muted" dir="ltr">${esc(u.whatsapp) || ''}</span></td>
+    <td data-l="Role">${esc(u.role)}</td>
+    <td data-l="Verified">${u.email_verified ? '<span class="pill ok">yes</span>' : '<span class="pill">no</span>'}</td>
+    <td data-l=""><button class="btn-ghost" data-edit-user='${u.id}'>Edit</button>
+    <button class="btn-danger" data-del-user='${u.id}' data-email='${esc(u.email)}'>Delete</button></td>
+  </tr>`).join('') || '<tr><td>No users</td></tr>';
+  bindUserButtons(list);
+}
+
+function bindUserButtons(list) {
+  document.querySelectorAll('[data-edit-user]').forEach((b) => {
+    b.onclick = () => openUserModal(list.find((u) => String(u.id) === b.dataset.editUser));
+  });
+  document.querySelectorAll('[data-del-user]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('Delete ' + b.dataset.delUser + ' (' + b.dataset.email + ')? Their listings go too. This cannot be undone.')) return;
+      try {
+        await api('/api/admin/users/' + b.dataset.delUser, { method: 'DELETE' });
+        loadUsers();
+        loadStats();
+      } catch (e) { alert(e.message); }
+    };
+  });
+}
+
+function field(label, id, val, type) {
+  return `<label>${label}</label><input id="${id}" type="${type || 'text'}" value="${esc(val ?? '')}">`;
+}
+
+function openUserModal(u) {
+  if (!u) return;
+  $('modalRoot').innerHTML = `<div class="modal-bg" id="mbg"><div class="modal">
+    <h1 style="font-size:18px">Edit user #${u.id}</h1>
+    <p class="muted">${esc(u.email)}</p>
+    ${field('Name', 'f_name', u.name)}
+    ${field('Phone (digits)', 'f_phone', u.phone, 'tel')}
+    ${field('WhatsApp (digits)', 'f_wa', u.whatsapp, 'tel')}
+    ${field('Avatar URL', 'f_avatar', u.avatar)}
+    <label>Role</label><select id="f_role">${['Landlord', 'Buyer', 'Seller', 'Agent'].map((r) => `<option ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
+    <label style="display:flex;gap:8px;align-items:center"><input id="f_ver" type="checkbox" style="width:auto" ${u.email_verified ? 'checked' : ''}> Email verified</label>
+    <div class="err" id="mErr"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn" id="mSave" style="flex:2">Save</button>
+      <button class="btn-ghost" id="mClose" style="flex:1">Cancel</button>
+    </div>
+  </div></div>`;
+  $('mbg').onclick = (e) => { if (e.target.id === 'mbg') closeModal(); };
+  $('mClose').onclick = closeModal;
+  $('mSave').onclick = async () => {
+    $('mErr').textContent = '';
+    try {
+      await api('/api/admin/users/' + u.id, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: $('f_name').value,
+          phone: $('f_phone').value,
+          whatsapp: $('f_wa').value,
+          avatar: $('f_avatar').value,
+          role: $('f_role').value,
+          email_verified: $('f_ver').checked,
+        }),
+      });
+      closeModal();
+      loadUsers();
+    } catch (e) { $('mErr').textContent = e.message; }
+  };
+}
+
+async function loadProps() {
+  const q = $('pq').value.trim();
+  const list = await api('/api/admin/properties?q=' + encodeURIComponent(q)).catch((e) => {
+    $('pBody').innerHTML = `<tr><td>${esc(e.message)}</td></tr>`;
+    return null;
+  });
+  if (!list) return;
+  $('pBody').innerHTML = list.map((p) => `<tr>
+    <td data-l="ID">${p.id}</td>
+    <td data-l="Listing"><b>${esc(p.title) || '—'}</b><br><span class="muted">${esc(p.location)} · ${p.beds}bd · ${esc(p.type)}</span></td>
+    <td data-l="Price"><span dir="ltr">${Number(p.price).toLocaleString()} ${esc(p.currency)}</span></td>
+    <td data-l="Owner"><span class="muted">${esc(p.owner_email) || '—'}</span></td>
+    <td data-l=""><button class="btn-ghost" data-edit-prop='${p.id}'>Edit</button>
+    <button class="btn-danger" data-del-prop='${p.id}'>Delete</button></td>
+  </tr>`).join('') || '<tr><td>No listings</td></tr>';
+  document.querySelectorAll('[data-edit-prop]').forEach((b) => {
+    b.onclick = async () => {
+      try {
+        const full = await api('/api/properties/' + b.dataset.editProp);
+        openPropModal(full);
+      } catch (e) { alert(e.message); }
+    };
+  });
+  document.querySelectorAll('[data-del-prop]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('Delete listing #' + b.dataset.delProp + '? This cannot be undone.')) return;
+      try {
+        await api('/api/admin/properties/' + b.dataset.delProp, { method: 'DELETE' });
+        loadProps();
+        loadStats();
+      } catch (e) { alert(e.message); }
+    };
+  });
+}
+
+function openPropModal(p) {
+  const imgs = Array.isArray(p.images) ? p.images : [];
+  $('modalRoot').innerHTML = `<div class="modal-bg" id="mbg"><div class="modal">
+    <h1 style="font-size:18px">Edit listing #${p.id}</h1>
+    ${field('Title', 'f_title', p.title)}
+    ${field('Location', 'f_location', p.location)}
+    <label>Description</label><textarea id="f_desc" rows="3">${esc(p.description)}</textarea>
+    <div style="display:flex;gap:10px">
+      <div style="flex:2">${field('Price', 'f_price', p.price, 'number')}</div>
+      <div style="flex:1"><label>Currency</label><select id="f_cur">${['SDG', 'USD', 'EGP'].map((c) => `<option ${p.currency === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div style="flex:1">${field('Beds', 'f_beds', p.beds, 'number')}</div>
+      <div style="flex:1">${field('Baths', 'f_baths', p.baths, 'number')}</div>
+      <div style="flex:1">${field('Floor', 'f_floor', p.floor)}</div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div style="flex:1"><label>Type</label><input id="f_type" value="${esc(p.type)}"></div>
+      <div style="flex:1"><label>Listing</label><select id="f_listing">${['Rent', 'Sell', 'Rent/Sale'].map((c) => `<option ${(p.listingType || p.listing_type) === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+      <div style="flex:1"><label>Furnished</label><select id="f_furn"><option value="">—</option>${['furnished', 'unfurnished'].map((c) => `<option ${p.furnished === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    </div>
+    ${field('Size', 'f_size', p.size)}
+    ${field('Contact phone', 'f_phone', p.phone, 'tel')}
+    ${field('Contact WhatsApp', 'f_wa', p.whatsapp, 'tel')}
+    <label>Photos (one URL per line)</label><textarea id="f_imgs" rows="3">${esc(imgs.join('\n'))}</textarea>
+    <div class="thumbs">${imgs.map((s) => `<img src="${esc(s)}" loading="lazy">`).join('')}</div>
+    <div class="err" id="mErr"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn" id="mSave" style="flex:2">Save</button>
+      <button class="btn-ghost" id="mClose" style="flex:1">Cancel</button>
+    </div>
+  </div></div>`;
+  $('mbg').onclick = (e) => { if (e.target.id === 'mbg') closeModal(); };
+  $('mClose').onclick = closeModal;
+  $('mSave').onclick = async () => {
+    $('mErr').textContent = '';
+    try {
+      await api('/api/admin/properties/' + p.id, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: $('f_title').value,
+          location: $('f_location').value,
+          description: $('f_desc').value,
+          price: $('f_price').value,
+          currency: $('f_cur').value,
+          beds: $('f_beds').value,
+          baths: $('f_baths').value,
+          floor: $('f_floor').value,
+          type: $('f_type').value,
+          listingType: $('f_listing').value,
+          furnished: $('f_furn').value,
+          size: $('f_size').value,
+          phone: $('f_phone').value,
+          whatsapp: $('f_wa').value,
+          images: $('f_imgs').value.split('\n').map((s) => s.trim()).filter(Boolean),
+        }),
+      });
+      closeModal();
+      loadProps();
+    } catch (e) { $('mErr').textContent = e.message; }
+  };
+}
+
+function closeModal() { $('modalRoot').innerHTML = ''; }
+
+$('loginBtn').onclick = doLogin;
+$('logoutBtn').onclick = logout;
+$('uSearch').onclick = loadUsers;
+$('uq').onkeydown = (e) => { if (e.key === 'Enter') loadUsers(); };
+$('pSearch').onclick = loadProps;
+$('pq').onkeydown = (e) => { if (e.key === 'Enter') loadProps(); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+</script>
+</body>
+</html>

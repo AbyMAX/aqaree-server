@@ -309,9 +309,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
     if (Number(existing[0].owner_id) !== Number(req.user.id)) {
       return res.status(403).json({ message: 'You can only delete your own listings' });
     }
-    await pool.query('DELETE FROM favorites WHERE property_id = $1', [req.params.id]);
-    await pool.query('DELETE FROM notifications WHERE property_id = $1', [req.params.id]);
-    await pool.query('DELETE FROM properties WHERE id = $1', [req.params.id]);
+    await deletePropertyCascade(req.params.id);
     return res.json({ ok: true });
   } catch (err) {
     console.error('property delete:', err.message);
@@ -319,4 +317,14 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
+async function deletePropertyCascade(id) {
+  await pool.query('DELETE FROM favorites WHERE property_id = $1', [id]);
+  await pool.query('DELETE FROM notifications WHERE property_id = $1', [id]);
+  await pool.query('DELETE FROM properties WHERE id = $1', [id]);
+}
+
 module.exports = router;
+// Shared with the admin panel (same write paths, no duplication).
+module.exports.pickBody = pickBody;
+module.exports.updateProperty = updateProperty;
+module.exports.deletePropertyCascade = deletePropertyCascade;
