@@ -43,7 +43,7 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
       relation: ['delegate_permission/common.handle_all_urls'],
       target: {
         namespace: 'android_app',
-        package_name: 'com.sohouse.app',
+        package_name: 'com.aqaree.app',
         sha256_cert_fingerprints: [
           '9D:A9:EF:EF:D8:93:98:43:7A:48:C3:04:96:58:AA:F5:18:0E:33:99:E1:13:9C:B5:98:A5:FB:44:9C:D6:69:64',
         ],
