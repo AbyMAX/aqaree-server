@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const pool = require('../db/pool');
 const { requireAuth } = require('../auth');
+const { publicLimiter } = require('../rateLimit');
 const { configured, uploadBuffer, uploadDataUrl } = require('../cloudinary');
 
 const router = express.Router();
@@ -56,7 +57,7 @@ const WITH_OWNER = `
   FROM properties p LEFT JOIN users u ON u.id = p.owner_id`;
 
 // GET /api/properties?q=&sort=&min=&max=&type=&beds=&baths=&cur=
-router.get('/', async (req, res) => {
+router.get('/', publicLimiter, async (req, res) => {
   try {
     const { q, sort, min, max, type, beds, baths, cur } = req.query;
     const conds = [];
@@ -97,7 +98,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/properties/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', publicLimiter, async (req, res) => {
   try {
     const { rows } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ message: 'Property not found' });

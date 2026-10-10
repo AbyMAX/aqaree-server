@@ -52,7 +52,8 @@ function escHtml(v) {
 
 // Shared listing landing page: opens the listing in the app when tapped
 // on Android, shows a preview otherwise.
-app.get('/property/:id', async (req, res) => {
+const { publicLimiter } = require('./rateLimit');
+app.get('/property/:id', publicLimiter, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT id, title, location, price, currency, images FROM properties WHERE id = $1',

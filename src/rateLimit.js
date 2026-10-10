@@ -19,4 +19,7 @@ module.exports = {
   verifyLimiter: authLimiter({ windowMinutes: 10, max: 20 }),
   resendLimiter: authLimiter({ windowMinutes: 10, max: 5 }),
   googleLimiter: authLimiter({ windowMinutes: 15, max: 30 }),
+  // Anonymous catalog reads: generous for humans, slow for scrapers
+  // walking IDs or the list endpoint. Health/assetlinks stay unlimited.
+  publicLimiter: authLimiter({ windowMinutes: 15, max: 300 }),
 };
