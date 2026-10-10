@@ -77,7 +77,42 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
+// POST /api/auth/resend-otp { email } -> fresh OTP for unverified accounts.
+// Throttled: at most one code per minute per email.
+router.post('/resend-otp', async (req, res) => {
+  try {
+    const email = String((req.body || {}).email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ message: 'No account for this email' });
+    if (user.email_verified) {
+      return res.status(400).json({ message: 'Email already verified', code: 'ALREADY_VERIFIED' });
+    }
+    const { rows: recent } = await pool.query(
+      `SELECT id FROM otp_codes WHERE email = $1 AND expires_at > NOW() + ($2 || ' minutes')::interval ORDER BY id DESC LIMIT 1`,
+      [email, String(OTP_TTL_MIN - 1)]
+    );
+    if (recent[0]) {
+      return res.status(429).json({ message: 'Please wait a minute before requesting a new code', code: 'TOO_MANY' });
+    }
+    await pool.query('DELETE FROM otp_codes WHERE email = $1', [email]);
+    const code = otpCode();
+    await pool.query(
+      `INSERT INTO otp_codes (email, code, expires_at) VALUES ($1, $2, NOW() + ($3 || ' minutes')::interval)`,
+      [email, code, String(OTP_TTL_MIN)]
+    );
+    await sendOtpEmail(email, code);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('resend-otp:', err.message);
+    return res.status(500).json({ message: 'Could not send code. Please try again.' });
+  }
+});
+
 // POST /api/auth/login { email, password } -> { token, user }
+// Unverified emails are rejected: backing out of the OTP screen and
+// logging in directly must never grant a session.
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -90,6 +125,9 @@ router.post('/login', async (req, res) => {
     if (!user || !user.password_hash) return res.status(401).json({ message: 'Invalid email or password' });
     const ok = await bcrypt.compare(String(password), user.password_hash);
     if (!ok) return res.status(401).json({ message: 'Invalid email or password' });
+    if (!user.email_verified) {
+      return res.status(403).json({ message: 'Please verify your email first', code: 'EMAIL_NOT_VERIFIED' });
+    }
 
     const pub = publicUser(user);
     return res.json({ token: signToken(pub), user: pub });
