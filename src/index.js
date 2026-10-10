@@ -26,15 +26,15 @@ app.use('/api/properties', require('./routes/properties'));
 app.use('/api/favorites', require('./routes/favorites'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/uploads', require('./routes/uploads'));
+app.use('/api/devices', require('./routes/devices'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api', require('./routes/content'));
 
 // Admin control panel (single page; the API enforces admin rights).
 app.get('/admin', (req, res) => {
   res.sendFile(require('path').join(__dirname, 'admin.html'));
 });
-app.use('/api/notifications', require('./routes/notifications'));
-app.use('/api/uploads', require('./routes/uploads'));
-app.use('/api', require('./routes/content'));
 
 // Android App Link verification for shared listing URLs.
 app.get('/.well-known/assetlinks.json', (req, res) => {

@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../auth');
 const { loginLimiter } = require('../rateLimit');
+const { pushToUser } = require('../push');
 const props = require('./properties');
 
 const router = express.Router();
@@ -261,6 +262,11 @@ router.put('/properties/:id', async (req, res) => {
            VALUES ($1, $2, $3, $4, $5)`,
           [prev.owner_id, b.status, prev.id, prev.title || '', prev.title_ar || '']
         );
+        pushToUser(prev.owner_id, {
+          title: b.status === 'approved' ? 'تم اضافة منشورك بنجاح' : 'لم تتم الموافقة على منشورك',
+          body: prev.title || '',
+          data: { propertyId: prev.id, route: `/property/${prev.id}`, type: b.status },
+        }).catch(() => {});
       }
     } catch (notifyErr) {
       console.error('moderation notify:', notifyErr.message);
