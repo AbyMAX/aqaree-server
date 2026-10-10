@@ -36,9 +36,6 @@ async function pushToUser(userId, { title, body, data }) {
     const { rows } = await pool.query('SELECT token FROM user_devices WHERE user_id = $1', [userId]);
     const tokens = rows.map((r) => r.token).filter(Boolean);
     if (!tokens.length) return { sent: 0, failed: 0, skipped: 'no-tokens', tokenCount: rows.length };
-    const { rows } = await pool.query('SELECT token FROM user_devices WHERE user_id = $1', [userId]);
-    const tokens = rows.map((r) => r.token).filter(Boolean);
-    if (!tokens.length) return { sent: 0, failed: 0, skipped: true };
     const strData = {};
     Object.entries(data || {}).forEach(([k, v]) => {
       strData[k] = String(v);
