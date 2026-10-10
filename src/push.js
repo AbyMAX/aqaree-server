@@ -43,8 +43,15 @@ function initFcm() {
       return { admin: null, steps };
     }
     try {
-      admin = sdk;
-      admin.initializeApp({ credential: admin.credential.cert(creds) });
+      // ESM/CJS interop: the credential API may live under .default.
+      let ns = sdk;
+      if (!ns.credential && ns.default) ns = ns.default;
+      if (!ns.credential || !ns.initializeApp) {
+        steps.init = 'firebase-admin exports unavailable';
+        return { admin: null, steps };
+      }
+      admin = ns;
+      admin.initializeApp({ credential: ns.credential.cert(creds) });
       steps.init = 'ok';
       return { admin, steps };
     } catch (e) {
