@@ -33,8 +33,8 @@ function requireAuth(req, res, next) {
   }
 }
 
-// Admin gate: emails listed in ADMIN_EMAILS (Render env, comma-separated).
-// No DB flag, so there's no chicken-and-egg on first setup.
+// Admin gate: account emails listed in ADMIN_EMAILS (Render env,
+// comma-separated), OR a token from the dedicated admin login below.
 function adminEmails() {
   return String(process.env.ADMIN_EMAILS || '')
     .split(',')
@@ -43,6 +43,7 @@ function adminEmails() {
 }
 
 function requireAdmin(req, res, next) {
+  if (req.user && req.user.admin === true) return next();
   const email = String((req.user && req.user.email) || '').toLowerCase();
   if (!email || !adminEmails().includes(email)) {
     return res.status(403).json({ message: 'Admin access required', code: 'NOT_ADMIN' });

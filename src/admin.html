@@ -52,8 +52,8 @@
 
   <div class="card" id="loginCard">
     <h1 style="font-size:18px">Sign in</h1>
-    <p class="muted">Use an admin account (email listed in ADMIN_EMAILS).</p>
-    <label>Email</label><input id="email" type="email" autocomplete="username">
+    <p class="muted">Admin username, or an account email listed in ADMIN_EMAILS.</p>
+    <label>Username or email</label><input id="email" type="text" autocomplete="username">
     <label>Password</label><input id="pass" type="password" autocomplete="current-password">
     <div style="margin-top:14px"><button class="btn" id="loginBtn">Log in</button></div>
     <div class="err" id="loginErr"></div>
@@ -107,21 +107,42 @@ async function api(path, opts = {}) {
   return j;
 }
 
+async function postJSON(path, body) {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok, j };
+}
+
 async function doLogin() {
   $('loginErr').textContent = '';
+  const id = $('email').value.trim();
+  const pass = $('pass').value;
+  let adminErr = '';
+  // 1) Dedicated admin credentials.
   try {
-    const r = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: $('email').value.trim(), password: $('pass').value }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.message || 'Login failed');
+    const { ok, j } = await postJSON('/api/admin/login', { username: id, password: pass });
+    if (ok && j.token) {
+      sessionStorage.setItem('aqaree-admin-token', j.token);
+      showPanel(j.user);
+      return;
+    }
+    adminErr = j.message || 'Admin login failed';
+  } catch (e) {
+    adminErr = e.message;
+  }
+  // 2) Account-email login (must be listed in ADMIN_EMAILS).
+  try {
+    const { ok, j } = await postJSON('/api/auth/login', { email: id, password: pass });
+    if (!ok) throw new Error(j.message || 'Login failed');
     sessionStorage.setItem('aqaree-admin-token', j.token);
     await api('/api/admin/stats'); // proves admin rights
     showPanel(j.user);
   } catch (e) {
-    $('loginErr').textContent = e.message;
+    $('loginErr').textContent = id.includes('@') ? e.message : adminErr || e.message;
   }
 }
 

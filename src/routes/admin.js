@@ -1,9 +1,50 @@
 const express = require('express');
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../auth');
+const { loginLimiter } = require('../rateLimit');
 const props = require('./properties');
 
 const router = express.Router();
+
+// Dedicated admin login: username + password from Render env
+// (ADMIN_USER / ADMIN_PASSWORD). Secrets stay out of the code;
+// rotate by changing the env values (Render redeploys automatically).
+function adminCreds() {
+  return {
+    user: String(process.env.ADMIN_USER || '').trim(),
+    pass: String(process.env.ADMIN_PASSWORD || ''),
+  };
+}
+
+function safeEqual(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret';
+
+// POST /api/admin/login { username, password } -> { token }
+router.post('/login', loginLimiter, async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    const creds = adminCreds();
+    if (!creds.user || !creds.pass) {
+      return res.status(500).json({ message: 'Admin login is not configured' });
+    }
+    if (!username || !safeEqual(username, creds.user) || !safeEqual(password || '', creds.pass)) {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+    const token = jwt.sign({ admin: true, name: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
+    return res.json({ token, user: { name: 'Administrator', email: '', role: 'Admin' } });
+  } catch (err) {
+    console.error('admin login:', err.message);
+    return res.status(500).json({ message: 'Admin login failed' });
+  }
+});
+
 router.use(requireAuth, requireAdmin);
 
 function adminUser(row) {
