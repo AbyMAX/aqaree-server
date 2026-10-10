@@ -338,6 +338,16 @@ router.post('/', requireAuth, upload.array('photos', 12), async (req, res) => {
       b.type, b.beds, b.baths, JSON.stringify(images), 'pending',
     ];
     const id = await insertProperty(cols, vals);
+    // Tell the owner their listing is under review (never fails the post).
+    try {
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, property_id, property_title, property_title_ar)
+         VALUES ($1, 'pending', $2, $3, $4)`,
+        [req.user.id, id, b.title, b.titleAr]
+      );
+    } catch (notifyErr) {
+      console.error('pending notify:', notifyErr.message);
+    }
     const { rows: full } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [id]);
     return res.status(201).json(shapeProperty(full[0]));
   } catch (err) {

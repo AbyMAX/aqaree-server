@@ -252,6 +252,19 @@ router.put('/properties/:id', async (req, res) => {
       ...(b.status ? [['status', b.status]] : []),
     ];
     await props.updateProperty(req.params.id, pairs);
+    // Notify the owner when moderation flips the listing's fate.
+    try {
+      const prevStatus = prev.status || 'approved';
+      if (b.status && (b.status === 'approved' || b.status === 'rejected') && b.status !== prevStatus && prev.owner_id) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, type, property_id, property_title, property_title_ar)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [prev.owner_id, b.status, prev.id, prev.title || '', prev.title_ar || '']
+        );
+      }
+    } catch (notifyErr) {
+      console.error('moderation notify:', notifyErr.message);
+    }
     const { rows: full } = await pool.query('SELECT * FROM properties WHERE id = $1', [req.params.id]);
     return res.json({ ok: true, id: full[0].id });
   } catch (err) {

@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/favorites { propertyId } — also notifies the listing owner.
+// POST /api/favorites { propertyId } — plain save, no notifications.
 router.post('/', async (req, res) => {
   try {
     const { propertyId } = req.body || {};
@@ -50,24 +50,6 @@ router.post('/', async (req, res) => {
       'INSERT INTO favorites (user_id, property_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [req.user.id, propertyId]
     );
-    try {
-      const { rows } = await pool.query(
-        `SELECT p.owner_id, p.title, p.title_ar, u.name AS actor_name
-         FROM properties p LEFT JOIN users u ON u.id = $1
-         WHERE p.id = $2`,
-        [req.user.id, propertyId]
-      );
-      const target = rows[0];
-      if (target && target.owner_id && Number(target.owner_id) !== Number(req.user.id)) {
-        await pool.query(
-          `INSERT INTO notifications (user_id, actor_id, actor_name, type, property_id, property_title, property_title_ar)
-           VALUES ($1, $2, $3, 'like', $4, $5, $6)`,
-          [target.owner_id, req.user.id, target.actor_name || '', propertyId, target.title || '', target.title_ar || '']
-        );
-      }
-    } catch (notifyErr) {
-      console.error('like notify:', notifyErr.message);
-    }
     return res.json({ ok: true });
   } catch (err) {
     console.error('favorite add:', err.message);
