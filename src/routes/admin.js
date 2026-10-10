@@ -67,16 +67,25 @@ function adminUser(row) {
 // well-formed (never returns the secret itself).
 router.get('/fcm-status', async (req, res) => {
   try {
+    let sdk = false;
+    let node = '';
+    try {
+      node = process.version || '';
+      require.resolve('firebase-admin');
+      sdk = true;
+    } catch {
+      sdk = false;
+    }
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT || '';
-    if (!raw) return res.json({ configured: false, reason: 'missing' });
+    if (!raw) return res.json({ configured: false, reason: 'missing', sdk, node });
     try {
       const j = JSON.parse(raw);
       if (!j.private_key || !j.client_email) {
-        return res.json({ configured: false, parseOk: true, reason: 'missing-fields' });
+        return res.json({ configured: false, parseOk: true, reason: 'missing-fields', sdk, node });
       }
-      return res.json({ configured: true, parseOk: true, projectId: j.project_id || '' });
+      return res.json({ configured: true, parseOk: true, projectId: j.project_id || '', sdk, node });
     } catch {
-      return res.json({ configured: false, parseOk: false, reason: 'bad-json' });
+      return res.json({ configured: false, parseOk: false, reason: 'bad-json', sdk, node });
     }
   } catch (err) {
     console.error('admin fcm-status:', err.message);
