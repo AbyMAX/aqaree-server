@@ -265,12 +265,25 @@ async function loadProps() {
   if (!list) return;
   $('pBody').innerHTML = list.map((p) => `<tr>
     <td data-l="ID">${p.id}</td>
-    <td data-l="Listing"><b>${esc(p.title) || '—'}</b><br><span class="muted">${esc(p.location)} · ${p.beds}bd · ${esc(p.type)}</span></td>
+    <td data-l="Listing"><b>${esc(p.title) || '—'}</b><br><span class="muted">${esc(p.location)} · ${p.beds}bd · ${esc(p.type)}</span><br>${p.status === 'approved' ? '<span class="pill ok">approved</span>' : p.status === 'rejected' ? '<span class="pill">rejected</span>' : '<span class="pill">pending</span>'}</td>
     <td data-l="Price"><span dir="ltr">${Number(p.price).toLocaleString()} ${esc(p.currency)}</span></td>
     <td data-l="Owner"><span class="muted">${esc(p.owner_email) || '—'}</span></td>
-    <td data-l=""><button class="btn-ghost" data-edit-prop='${p.id}'>Edit</button>
+    <td data-l="">${p.status !== 'approved' ? `<button class="btn-ghost" data-approve-prop='${p.id}'>Approve</button> ` : ''}${p.status !== 'rejected' ? `<button class="btn-ghost" data-reject-prop='${p.id}'>Reject</button> ` : ''}<button class="btn-ghost" data-edit-prop='${p.id}'>Edit</button>
     <button class="btn-danger" data-del-prop='${p.id}'>Delete</button></td>
   </tr>`).join('') || '<tr><td>No listings</td></tr>';
+  const setStatus = async (id, status) => {
+    try {
+      await api('/api/admin/properties/' + id, { method: 'PUT', body: JSON.stringify({ status }) });
+      loadProps();
+      loadStats();
+    } catch (e) { alert(e.message); }
+  };
+  document.querySelectorAll('[data-approve-prop]').forEach((b) => {
+    b.onclick = () => setStatus(b.dataset.approveProp, 'approved');
+  });
+  document.querySelectorAll('[data-reject-prop]').forEach((b) => {
+    b.onclick = () => setStatus(b.dataset.rejectProp, 'rejected');
+  });
   document.querySelectorAll('[data-edit-prop]').forEach((b) => {
     b.onclick = async () => {
       try {

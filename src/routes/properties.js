@@ -1,8 +1,41 @@
 const express = require('express');
 const multer = require('multer');
+const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 const { requireAuth } = require('../auth');
 const { publicLimiter } = require('../rateLimit');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret';
+
+// Cached: does the DB have the moderation column yet (migrate8)?
+let HAS_STATUS = null;
+async function hasStatusCol() {
+  if (HAS_STATUS === null) {
+    try {
+      const r = await pool.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = 'properties' AND column_name = 'status'`
+      );
+      HAS_STATUS = r.rows.length > 0;
+    } catch {
+      HAS_STATUS = false;
+    }
+  }
+  return HAS_STATUS;
+}
+
+// Best-effort viewer id from an optional Bearer token (public routes stay
+// public; owners just also see their own pending listings).
+function viewerId(req) {
+  try {
+    const h = req.headers.authorization || '';
+    const t = h.startsWith('Bearer ') ? h.slice(7) : null;
+    if (!t) return null;
+    const n = Number(jwt.verify(t, JWT_SECRET).id);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
 const { configured, uploadBuffer, uploadDataUrl } = require('../cloudinary');
 
 const router = express.Router();
@@ -52,6 +85,7 @@ function shapeProperty(row) {
     baths: Number(row.baths) || 0,
     image: (row.images && row.images[0]) || '',
     images: row.images || [],
+    status: row.status || 'approved',
     owner: row.owner_id
       ? { name: row.owner_name || '', avatar: row.owner_avatar || '', email: row.owner_email || '', role: row.owner_role || 'Landlord' }
       : undefined,
@@ -95,6 +129,17 @@ router.get('/', publicLimiter, async (req, res) => {
     if (sort === 'Lowest Price') order = 'p.price ASC';
     else if (sort === 'Highest Price') order = 'p.price DESC';
 
+    // Moderation: public sees approved listings; owners also see their own.
+    if (await hasStatusCol()) {
+      const uid = viewerId(req);
+      if (uid) {
+        vals.push(uid);
+        conds.push(`(p.status = 'approved' OR p.owner_id = $${vals.length})`);
+      } else {
+        conds.push(`p.status = 'approved'`);
+      }
+    }
+
     const { rows } = await pool.query(
       `${WITH_OWNER}${conds.length ? ` WHERE ${conds.join(' AND ')}` : ''} ORDER BY ${order} LIMIT 200`,
       vals
@@ -111,6 +156,22 @@ router.get('/:id', publicLimiter, async (req, res) => {
   try {
     const { rows } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ message: 'Property not found' });
+    // Moderation: pending/rejected listings open only for their owner
+    // (or an admin reviewing them).
+    if ((await hasStatusCol()) && rows[0].status && rows[0].status !== 'approved') {
+      let isAdmin = false;
+      try {
+        const h = req.headers.authorization || '';
+        const t = h.startsWith('Bearer ') ? h.slice(7) : null;
+        isAdmin = !!(t && jwt.verify(t, JWT_SECRET).admin === true);
+      } catch {
+        /* ignore */
+      }
+      const uid = viewerId(req);
+      if (!isAdmin && (!uid || Number(rows[0].owner_id) !== uid)) {
+        return res.status(404).json({ message: 'Property not found' });
+      }
+    }
     return res.json(shapeProperty(rows[0]));
   } catch (err) {
     console.error('property get:', err.message);
@@ -163,6 +224,7 @@ function pickBody(body = {}) {
     type: body.propertyType || body.type || 'House',
     beds: num(body.bedrooms ?? body.beds),
     baths: num(body.bathrooms ?? body.baths),
+    status: ['pending', 'approved', 'rejected'].includes(body.status) ? body.status : undefined,
   };
 }
 
@@ -254,13 +316,13 @@ router.post('/', requireAuth, upload.array('photos', 12), async (req, res) => {
       'owner_id', 'title', 'title_ar', 'location', 'location_ar', 'description',
       'description_ar', 'price', 'currency', 'phone', 'whatsapp', 'size',
       'amenities', 'floor', 'furnished', 'latitude', 'longitude', 'contact_name', 'email',
-      'listing_type', 'type', 'beds', 'baths', 'images',
+      'listing_type', 'type', 'beds', 'baths', 'images', 'status',
     ];
     const vals = [
       req.user.id, b.title, b.titleAr, b.location, b.locationAr, b.description,
       b.descriptionAr, b.price, b.currency, b.phone, b.whatsapp, b.size,
       JSON.stringify(b.amenities), b.floor, b.furnished, b.latitude, b.longitude, b.contactName, b.email, b.listingType,
-      b.type, b.beds, b.baths, JSON.stringify(images),
+      b.type, b.beds, b.baths, JSON.stringify(images), 'pending',
     ];
     const id = await insertProperty(cols, vals);
     const { rows: full } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [id]);

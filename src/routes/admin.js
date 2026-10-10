@@ -207,6 +207,7 @@ router.get('/properties', async (req, res) => {
         currency: r.currency || 'SDG',
         type: r.type || '',
         beds: Number(r.beds) || 0,
+        status: r.status || 'approved',
         owner_email: r.owner_email || '',
         created_at: r.created_at,
       }))
@@ -248,6 +249,7 @@ router.put('/properties/:id', async (req, res) => {
       ['listing_type', b.listingType], ['type', b.type],
       ['beds', b.beds], ['baths', b.baths],
       ['images', JSON.stringify(Array.isArray(bodyImages) ? bodyImages : [])],
+      ...(b.status ? [['status', b.status]] : []),
     ];
     await props.updateProperty(req.params.id, pairs);
     const { rows: full } = await pool.query('SELECT * FROM properties WHERE id = $1', [req.params.id]);
