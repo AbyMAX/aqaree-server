@@ -312,6 +312,53 @@ router.get('/properties', async (req, res) => {
   }
 });
 
+// GET /api/admin/properties/:id -> full listing (any status) + owner info.
+// The public endpoint hides pending listings, so moderation needs this.
+router.get('/properties/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.*, u.email AS owner_email, u.name AS owner_name
+       FROM properties p LEFT JOIN users u ON u.id = p.owner_id WHERE p.id = $1`,
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ message: 'Property not found' });
+    const r = rows[0];
+    let images = [];
+    let amenities = [];
+    try { images = typeof r.images === 'string' ? JSON.parse(r.images || '[]') : (r.images || []); } catch { images = []; }
+    try { amenities = typeof r.amenities === 'string' ? JSON.parse(r.amenities || '[]') : (r.amenities || []); } catch { amenities = []; }
+    return res.json({
+      id: r.id,
+      title: r.title || '',
+      title_ar: r.title_ar || '',
+      location: r.location || '',
+      location_ar: r.location_ar || '',
+      description: r.description || '',
+      description_ar: r.description_ar || '',
+      price: Number(r.price) || 0,
+      currency: r.currency || 'SDG',
+      type: r.type || '',
+      listing_type: r.listing_type || '',
+      beds: Number(r.beds) || 0,
+      baths: Number(r.baths) || 0,
+      size: r.size || '',
+      floor: r.floor || '',
+      furnished: r.furnished || '',
+      images,
+      amenities,
+      status: r.status || 'approved',
+      owner_email: r.owner_email || '',
+      owner_name: r.owner_name || '',
+      contact_name: r.contact_name || '',
+      phone: r.phone || '',
+      created_at: r.created_at,
+    });
+  } catch (err) {
+    console.error('admin property detail:', err.message);
+    return res.status(500).json({ message: 'Could not load listing' });
+  }
+});
+
 // PUT /api/admin/properties/:id -> same write path as the app (tolerates
 // pending migrations). Accepts the listing-form payload + images[] URLs.
 router.put('/properties/:id', async (req, res) => {
