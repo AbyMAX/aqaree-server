@@ -81,8 +81,11 @@ function shapeProperty(row) {
     email: row.email || '',
     listingType: row.listing_type || 'Rent',
     type: row.type || 'House',
+    category: row.category || 'Residential',
     beds: Number(row.beds) || 0,
     baths: Number(row.baths) || 0,
+    leaseLength: row.lease_length ?? null,
+    paymentFrequency: row.payment_frequency || '',
     image: (row.images && row.images[0]) || '',
     images: row.images || [],
     status: row.status || 'approved',
@@ -234,9 +237,12 @@ function pickBody(body = {}) {
     contactName: body.contactName || body.contact_name || '',
     email: body.email || '',
     listingType: body.listingType || body.listing_type || 'Rent',
-    type: body.propertyType || body.type || 'House',
+    category: body.category || 'Residential',
+    propertyType: body.propertyType || body.type || 'House',
     beds: num(body.bedrooms ?? body.beds),
     baths: num(body.bathrooms ?? body.baths),
+    leaseLength: num(body.leaseLength ?? body.lease_length),
+    paymentFrequency: body.paymentFrequency || body.payment_frequency || '',
     status: ['pending', 'approved', 'rejected'].includes(body.status) ? body.status : undefined,
   };
 }
@@ -330,12 +336,14 @@ router.post('/', requireAuth, upload.array('photos', 12), async (req, res) => {
       'description_ar', 'price', 'currency', 'phone', 'whatsapp', 'size',
       'amenities', 'floor', 'furnished', 'latitude', 'longitude', 'contact_name', 'email',
       'listing_type', 'type', 'beds', 'baths', 'images', 'status',
+      'category', 'lease_length', 'payment_frequency',
     ];
     const vals = [
       req.user.id, b.title, b.titleAr, b.location, b.locationAr, b.description,
       b.descriptionAr, b.price, b.currency, b.phone, b.whatsapp, b.size,
       JSON.stringify(b.amenities), b.floor, b.furnished, b.latitude, b.longitude, b.contactName, b.email, b.listingType,
       b.type, b.beds, b.baths, JSON.stringify(images), 'pending',
+      b.category, b.leaseLength, b.paymentFrequency,
     ];
     const id = await insertProperty(cols, vals);
     // Tell the owner their listing is under review (never fails the post).
@@ -384,6 +392,7 @@ router.put('/:id', requireAuth, upload.array('photos', 12), async (req, res) => 
       ['contact_name', b.contactName], ['email', b.email],
       ['listing_type', b.listingType], ['type', b.type],
       ['beds', b.beds], ['baths', b.baths],
+      ['category', b.category], ['lease_length', b.leaseLength], ['payment_frequency', b.paymentFrequency],
       ['images', JSON.stringify(keepImages)],
     ]);
     const { rows: full } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [req.params.id]);

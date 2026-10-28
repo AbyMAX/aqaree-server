@@ -36,6 +36,78 @@ app.get('/admin', (req, res) => {
   res.sendFile(require('path').join(__dirname, 'admin.html'));
 });
 
+// Public privacy policy (required by Google Play). Arabic-first, RTL,
+// with an English section below. Keep in sync with actual data practices:
+// email/phone, listing content & photos, location, device push tokens.
+app.get('/privacy', (req, res) => {
+  const updatedAt = '2026-10-28';
+  const contact = 'aqaree.sd@gmail.com';
+  res.send(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>سياسة الخصوصية — عقاري | Privacy Policy — Aqaree</title><style>body{margin:0;font-family:system-ui,'Segoe UI',Tahoma,sans-serif;background:#ffffff;color:#131316;line-height:1.8}main{max-width:720px;margin:0 auto;padding:32px 20px 64px}h1{font-size:26px;margin:0 0 4px}h2{font-size:19px;margin:32px 0 8px}p,li{font-size:15px;color:#3f3f46}ul{padding-inline-start:22px}small{color:#71717a}hr{border:0;border-top:1px solid #e4e4e7;margin:32px 0}.en{direction:ltr;text-align:left}.en h2,.en p,.en li{color:#3f3f46}.brand{display:inline-block;background:#1D4ED8;color:#fff;font-weight:700;padding:4px 12px;border-radius:10px;margin-bottom:12px}</style></head><body><main>
+<h1>سياسة الخصوصية <small>(آخر تحديث: ${updatedAt})</small></h1>
+<p><span class="brand">عقاري</span> هو تطبيق لعرض وإدارة العقارات في السودان. نحترم خصوصيتك ونجمع أقل قدر ممكن من البيانات.</p>
+
+<h2>١. البيانات التي نجمعها</h2>
+<ul>
+<li><b>بيانات الحساب:</b> الاسم، البريد الإلكتروني، رقم الهاتف، رقم واتساب (للتواصل بين البائع والمشتري).</li>
+<li><b>محتوى الإعلانات:</b> عنوان العقار، الوصف، الموقع، السعر، عدد الغرف والحمامات، الخصائص (مثل المكيف)، والصور التي ترفعها.</li>
+<li><b>الموقع الجغرافي:</b> إحداثيات العقار التي تحددها بنفسك على الخريطة (لا نجمع موقعك الحالي تلقائياً).</li>
+<li><b>بيانات الجهاز:</b> رمز الإشعارات (Push Token) لإرسال إشعارات مثل تفاعل المستخدمين مع إعلانك.</li>
+<li><b>بيانات الدخول عبر جوجل:</b> إذا سجلت الدخول بجوجل، نستخدم الاسم والبريد وصورة الحساب فقط.</li>
+</ul>
+
+<h2>٢. كيف نستخدم البيانات</h2>
+<ul>
+<li>تشغيل الخدمة: عرض إعلاناتك، إدارة المفضلة، وحفظ إعداداتك (اللغة، العملة).</li>
+<li>إرسال رمز التحقق (OTP) إلى بريدك عند تسجيل الدخول، عبر مزود البريد Brevo.</li>
+<li>إرسال إشعارات فورية عبر Firebase Cloud Messaging.</li>
+<li>تحسين الخدمة ومراجعة الإعلانات قبل نشرها (الإشراف).</li>
+</ul>
+
+<h2>٣. مشاركة البيانات مع أطراف ثالثة</h2>
+<ul>
+<li><b>Neon:</b> استضافة قاعدة البيانات.</li>
+<li><b>Cloudinary:</b> تخزين صور الإعلانات.</li>
+<li><b>Brevo:</b> إرسال رسائل رمز التحقق.</li>
+<li><b>Firebase (Google):</b> الإشعارات وتسجيل الدخول بجوجل.</li>
+<li>لا نبيع بياناتك لأي جهة، ولا نستخدمها للإعلانات.</li>
+</ul>
+
+<h2>٤. مدة الاحتفاظ بالبيانات</h2>
+<p>نحتفظ ببياناتك طالما حسابك نشط. عند حذف حسابك من داخل التطبيق (الملف الشخصي ← حذف الحساب) تُحذف نهائياً: إعلاناتك وصورها، مفضلاتك، إشعاراتك، ورموز إشعارات جهازك.</p>
+
+<h2>٥. حقوقك</h2>
+<ul>
+<li>يمكنك حذف حسابك وبياناتك بالكامل من داخل التطبيق في أي وقت.</li>
+<li>يمكنك طلب تصحيح بياناتك (الاسم/الهاتف) من صفحة الملف الشخصي.</li>
+<li>للاستفسارات أو طلبات الخصوصية: <b>${contact}</b></li>
+</ul>
+
+<h2>٦. الأطفال</h2>
+<p>الخدمة موجهة للبالغين (18+) ولا نجمع بيانات الأطفال عمداً.</p>
+
+<hr>
+<div class="en">
+<h1>Privacy Policy <small>(updated: ${updatedAt})</small></h1>
+<h2>1. Data we collect</h2>
+<ul>
+<li><b>Account:</b> name, email, phone number, WhatsApp number (used to connect buyers and sellers).</li>
+<li><b>Listing content:</b> title, description, location, price, rooms, amenities and the photos you upload.</li>
+<li><b>Location:</b> the property coordinates you pick on the map. We never collect your live location.</li>
+<li><b>Device:</b> push notification token (for notifications such as activity on your listing).</li>
+<li><b>Google sign-in:</b> if you use Google, we receive your name, email and profile picture only.</li>
+</ul>
+<h2>2. How we use data</h2>
+<ul><li>To run the service: showing listings, favorites, and your preferences.</li><li>To email your one-time login code (via Brevo).</li><li>To deliver push notifications (via Firebase Cloud Messaging).</li><li>To moderate listings before they appear.</li></ul>
+<h2>3. Third parties</h2>
+<ul><li><b>Neon</b> (database), <b>Cloudinary</b> (photos), <b>Brevo</b> (email codes), <b>Firebase / Google</b> (auth &amp; push).</li><li>We never sell your data or use it for advertising.</li></ul>
+<h2>4. Retention &amp; deletion</h2>
+<p>Data is kept while your account is active. Deleting your account in-app (Profile → Delete Account) permanently removes your listings and their photos, favorites, notifications and device tokens.</p>
+<h2>5. Your rights &amp; contact</h2>
+<ul><li>Delete your account and data anytime from inside the app.</li><li>Correct your profile data from the Profile page.</li><li>Questions: <b>${contact}</b></li></ul>
+</div>
+</main></body></html>`);
+});
+
 // Android App Link verification for shared listing URLs.
 app.get('/.well-known/assetlinks.json', (req, res) => {
   res.json([
@@ -45,7 +117,10 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
         namespace: 'android_app',
         package_name: 'com.aqaree.app',
         sha256_cert_fingerprints: [
+          // Debug keystore
           '9D:A9:EF:EF:D8:93:98:43:7A:48:C3:04:96:58:AA:F5:18:0E:33:99:E1:13:9C:B5:98:A5:FB:44:9C:D6:69:64',
+          // Release upload keystore (aqaree-release.keystore)
+          'CC:AF:EB:83:F6:52:C4:A7:00:3F:BB:90:FC:6C:84:1A:95:74:80:F7:80:6F:E4:97:B1:B1:F2:5E:80:F5:CD:97',
         ],
       },
     },
