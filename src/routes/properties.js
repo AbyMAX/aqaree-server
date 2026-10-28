@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 const { requireAuth } = require('../auth');
 const { publicLimiter } = require('../rateLimit');
+const { pushToAdmins } = require('../push');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret';
 
@@ -355,6 +356,17 @@ router.post('/', requireAuth, upload.array('photos', 12), async (req, res) => {
       );
     } catch (notifyErr) {
       console.error('pending notify:', notifyErr.message);
+    }
+    // Alert the Aqaree Admin app: a new listing is waiting for review.
+    // Best-effort — a push failure must never fail the post.
+    try {
+      await pushToAdmins({
+        title: 'إعلان جديد بانتظار المراجعة',
+        body: `${b.title || b.titleAr || 'عقار جديد'}${req.user.email ? ` — ${req.user.email}` : ''}`,
+        data: { propertyId: id, type: 'new-listing' },
+      });
+    } catch (adminPushErr) {
+      console.error('new-listing admin push:', adminPushErr.message);
     }
     const { rows: full } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [id]);
     return res.status(201).json(shapeProperty(full[0]));

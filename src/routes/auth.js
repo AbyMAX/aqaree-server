@@ -130,6 +130,9 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(403).json({ message: 'Please verify your email first', code: 'EMAIL_NOT_VERIFIED' });
     }
 
+    // Stamp the last successful login for the admin panel (best-effort).
+    pool.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]).catch(() => {});
+
     const pub = publicUser(user);
     return res.json({ token: signToken(pub), user: pub });
   } catch (err) {
@@ -182,6 +185,8 @@ router.post('/google', googleLimiter, async (req, res) => {
         user.id,
       ]);
     }
+    // Stamp the last successful login for the admin panel (best-effort).
+    pool.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]).catch(() => {});
     const pub = publicUser(user);
     return res.json({ token: signToken(pub), user: pub });
   } catch (err) {

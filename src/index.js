@@ -159,6 +159,23 @@ app.use((req, res) => res.status(404).json({ message: 'Not found' }));
 if (process.env.DATABASE_URL) {
   const { seedIfEmpty } = require('./db/seed');
   seedIfEmpty().catch((err) => console.error('seed:', err.message));
+
+  // Idempotent boot-time schema for the Aqaree Admin app (migrate11):
+  // last-login tracking + admin push devices. Runs on every deploy; the
+  // IF NOT EXISTS guards make it free after the first time.
+  (async () => {
+    try {
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ');
+      await pool.query(`CREATE TABLE IF NOT EXISTS admin_devices (
+        token      TEXT PRIMARY KEY,
+        platform   TEXT NOT NULL DEFAULT 'android',
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
+      console.log('admin schema: ok');
+    } catch (err) {
+      console.error('admin schema:', err.message);
+    }
+  })();
 }
 
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));

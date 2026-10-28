@@ -4,7 +4,8 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../auth');
 const { loginLimiter } = require('../rateLimit');
-const { pushToUser } = require('../push');
+const bcrypt = require('bcryptjs');
+const { pushToUser, pushToAdmins } = require('../push');
 const props = require('./properties');
 
 const router = express.Router();
@@ -60,6 +61,10 @@ function adminUser(row) {
     whatsapp: row.whatsapp || '',
     email_verified: !!row.email_verified,
     created_at: row.created_at,
+    last_login_at: row.last_login_at || null,
+    has_password: !!row.password_hash,
+    google_linked: !!row.google_sub,
+    listings_count: Number(row.listings_count) || 0,
   };
 }
 
@@ -123,7 +128,8 @@ router.get('/users', async (req, res) => {
       where = `WHERE email ILIKE $1 OR name ILIKE $1`;
     }
     const { rows } = await pool.query(
-      `SELECT * FROM users ${where} ORDER BY id DESC LIMIT ${limit}`,
+      `SELECT u.*, (SELECT COUNT(*)::int FROM properties p WHERE p.owner_id = u.id) AS listings_count
+       FROM users u ${where} ORDER BY u.id DESC LIMIT ${limit}`,
       vals
     );
     return res.json(rows.map(adminUser));
@@ -193,6 +199,60 @@ router.put('/users/:id', async (req, res) => {
   } catch (err) {
     console.error('admin user update:', err.message);
     return res.status(500).json({ message: 'Could not save user' });
+  }
+});
+
+// POST /api/admin/users/:id/password { password } -> admin password reset.
+// Stored hashes are never readable (bcrypt), so the admin can only SET a
+// new password, never see the old one. Responds with the updated user.
+router.post('/users/:id/password', async (req, res) => {
+  try {
+    const password = String((req.body || {}).password || '');
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+    const { rows: existing } = await pool.query('SELECT id FROM users WHERE id = $1', [req.params.id]);
+    if (!existing[0]) return res.status(404).json({ message: 'User not found' });
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.params.id]);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('admin password reset:', err.message);
+    return res.status(500).json({ message: 'Could not reset password' });
+  }
+});
+
+// POST /api/admin/devices { token, platform } -> register the Aqaree Admin
+// app's FCM token so new-listing alerts reach this device even when closed.
+router.post('/devices', async (req, res) => {
+  try {
+    const token = String((req.body || {}).token || '').trim();
+    if (!token) return res.status(400).json({ message: 'Token is required' });
+    const platform = String((req.body || {}).platform || 'android').slice(0, 20);
+    await pool.query(
+      `INSERT INTO admin_devices (token, platform) VALUES ($1, $2)
+       ON CONFLICT (token) DO UPDATE SET platform = $2, updated_at = NOW()`,
+      [token, platform]
+    );
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('admin device register:', err.message);
+    return res.status(500).json({ message: 'Could not register device' });
+  }
+});
+
+// POST /api/admin/push-test -> send a test alert to all admin devices.
+router.post('/push-test', async (req, res) => {
+  try {
+    const result = await pushToAdmins({
+      title: 'إشعار تجريبي — عقاري أدمن',
+      body: 'لو وصلتك هذه الرسالة فالإشعارات تعمل بشكل صحيح',
+      data: { type: 'test' },
+    });
+    return res.json(result);
+  } catch (err) {
+    console.error('admin push test:', err.message);
+    return res.status(500).json({ message: 'Could not send test push' });
   }
 });
 

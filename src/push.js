@@ -97,4 +97,49 @@ async function pushToUser(userId, { title, body, data }) {
   }
 }
 
-module.exports = { pushToUser, initFcm };
+// Push a notification + data payload to all registered Aqaree Admin app
+// devices (the admin_devices table — the admin app registers on login).
+// Tokens that FCM reports as dead/unregistered are pruned so the table
+// self-cleans. Never throws: pushes are best-effort.
+async function pushToAdmins({ title, body, data }) {
+  try {
+    const h = fcm();
+    if (!h) return { sent: 0, failed: 0, skipped: 'no-fcm-key' };
+    const { rows } = await pool.query('SELECT token FROM admin_devices');
+    const tokens = rows.map((r) => r.token).filter(Boolean);
+    if (!tokens.length) return { sent: 0, failed: 0, skipped: 'no-tokens' };
+    const strData = {};
+    Object.entries(data || {}).forEach(([k, v]) => {
+      strData[k] = String(v);
+    });
+    const res = await h.messaging.sendEachForMulticast({
+      tokens,
+      notification: { title: String(title || ''), body: String(body || '') },
+      data: strData,
+    });
+    // Prune tokens FCM rejected as unregistered/invalid so dead installs
+    // don't accumulate.
+    const dead = [];
+    (res.responses || []).forEach((r, i) => {
+      if (!r.success && r.error) {
+        const s = String(r.error.code || r.error.message || '');
+        if (/registration-token-not-registered|unregistered|invalid-argument|invalid-registration/i.test(s)) {
+          dead.push(tokens[i]);
+        }
+      }
+    });
+    if (dead.length) {
+      try {
+        await pool.query('DELETE FROM admin_devices WHERE token = ANY($1)', [dead]);
+      } catch {
+        /* pruning is best-effort */
+      }
+    }
+    return { sent: res.successCount || 0, failed: res.failureCount || 0 };
+  } catch (err) {
+    console.error('pushToAdmins:', err.message);
+    return { sent: 0, failed: 0, error: String(err.message).slice(0, 160) };
+  }
+}
+
+module.exports = { pushToUser, pushToAdmins, initFcm };
