@@ -101,15 +101,16 @@ router.get('/fcm-status', async (req, res) => {
   }
 });
 
-// GET /api/admin/stats -> table counts.
+// GET /api/admin/stats -> table counts (+ pending moderation queue size).
 router.get('/stats', async (req, res) => {
   try {
-    const [[u], [p], [f]] = await Promise.all([
+    const [[u], [p], [f], [pd]] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS n FROM users').then((r) => r.rows),
       pool.query('SELECT COUNT(*)::int AS n FROM properties').then((r) => r.rows),
       pool.query('SELECT COUNT(*)::int AS n FROM favorites').then((r) => r.rows),
+      pool.query("SELECT COUNT(*)::int AS n FROM properties WHERE status = 'pending'").then((r) => r.rows),
     ]);
-    return res.json({ users: u.n, properties: p.n, favorites: f.n });
+    return res.json({ users: u.n, properties: p.n, favorites: f.n, pending: pd.n });
   } catch (err) {
     console.error('admin stats:', err.message);
     return res.status(500).json({ message: 'Could not load stats' });
