@@ -52,6 +52,7 @@ const TYPE_MAP = {
   Warehouses: 'Warehouse',
   Villas: 'Villa',
   Offices: 'Office',
+  Land: 'Land',
 };
 
 // Approximate FX to SDG for price-range filtering only (never displayed).
@@ -85,6 +86,7 @@ function shapeProperty(row) {
     category: row.category || 'Residential',
     beds: Number(row.beds) || 0,
     baths: Number(row.baths) || 0,
+    views: Number(row.views_count) || 0,
     leaseLength: row.lease_length ?? null,
     paymentFrequency: row.payment_frequency || '',
     image: (row.images && row.images[0]) || '',
@@ -124,13 +126,15 @@ router.get('/', publicLimiter, async (req, res) => {
       );
       return res.json(rows.map(shapeProperty));
     }
-    const { q, sort, min, max, type, beds, baths, cur } = req.query;
+    const { q, sort, min, max, type, beds, baths, cur, listingType } = req.query;
     const conds = [];
     const vals = [];
     const add = (sql, v) => {
       vals.push(v);
       conds.push(sql.replace('?', `$${vals.length}`));
     };
+
+    if (listingType) add('p.listing_type = ?', String(listingType));
 
     if (type) add('p.type = ?', TYPE_MAP[type] || type);
     if (beds && beds !== '5+') add('p.beds = ?', Number(beds));
@@ -173,6 +177,15 @@ router.get('/:id', publicLimiter, async (req, res) => {
   try {
     const { rows } = await pool.query(`${WITH_OWNER} WHERE p.id = $1`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ message: 'Property not found' });
+    if ((await hasStatusCol())) {
+      // Count one view for every successful open (best-effort; refreshes
+      // included — the chip is a rough interest meter, not analytics).
+      pool
+        .query('UPDATE properties SET views_count = COALESCE(views_count, 0) + 1 WHERE id = $1', [
+          req.params.id,
+        ])
+        .catch(() => {});
+    }
     // Moderation: pending/rejected listings open only for their owner
     // (or an admin reviewing them).
     if ((await hasStatusCol()) && rows[0].status && rows[0].status !== 'approved') {

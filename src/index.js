@@ -188,6 +188,8 @@ if (process.env.DATABASE_URL) {
       await pool.query('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, created_at DESC)');
       await pool.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT ''");
       await pool.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body TEXT NOT NULL DEFAULT ''");
+      // Listing detail view counter (used by the app's "X views" chip).
+      await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS views_count INTEGER NOT NULL DEFAULT 0');
       console.log('admin schema: ok');
     } catch (err) {
       console.error('admin schema:', err.message);
