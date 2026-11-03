@@ -5,7 +5,7 @@ const pool = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../auth');
 const { loginLimiter } = require('../rateLimit');
 const bcrypt = require('bcryptjs');
-const { pushToUser, pushToAdmins } = require('../push');
+const { pushToUser, pushToAdmins, pushToAllUsers } = require('../push');
 const props = require('./properties');
 
 const router = express.Router();
@@ -72,6 +72,15 @@ function adminUser(row) {
 // well-formed (never returns the secret itself).
 router.get('/fcm-status', async (req, res) => {
   try {
+    // How many admin app installs are registered for push (test alerts go
+    // only to these — never to end users).
+    let adminDevices = null;
+    try {
+      const cd = await pool.query('SELECT COUNT(*)::int AS n FROM admin_devices');
+      adminDevices = cd.rows[0].n;
+    } catch {
+      /* table may not exist yet */
+    }
     let sdk = false;
     let node = '';
     try {
@@ -85,15 +94,15 @@ router.get('/fcm-status', async (req, res) => {
     const { initFcm } = require('../push');
     const { steps } = initFcm();
     const raw = process.env.FIREBASE_SERVICE_ACCOUNT || '';
-    if (!raw) return res.json({ configured: false, reason: 'missing', sdk, node, steps });
+    if (!raw) return res.json({ configured: false, reason: 'missing', sdk, node, steps, adminDevices });
     try {
       const j = JSON.parse(raw);
       if (!j.private_key || !j.client_email) {
-        return res.json({ configured: false, parseOk: true, reason: 'missing-fields', sdk, node, steps });
+        return res.json({ configured: false, parseOk: true, reason: 'missing-fields', sdk, node, steps, adminDevices });
       }
-      return res.json({ configured: !!steps.init, parseOk: true, projectId: j.project_id || '', sdk, node, steps });
+      return res.json({ configured: !!steps.init, parseOk: true, projectId: j.project_id || '', sdk, node, steps, adminDevices });
     } catch {
-      return res.json({ configured: false, parseOk: false, reason: 'bad-json', sdk, node, steps });
+      return res.json({ configured: false, parseOk: false, reason: 'bad-json', sdk, node, steps, adminDevices });
     }
   } catch (err) {
     console.error('admin fcm-status:', err.message);
@@ -243,6 +252,8 @@ router.post('/devices', async (req, res) => {
 });
 
 // POST /api/admin/push-test -> send a test alert to all admin devices.
+// Note: this never touches end users — it exists so the admin can confirm
+// their own phone(s) are registered before real alerts matter.
 router.post('/push-test', async (req, res) => {
   try {
     const result = await pushToAdmins({
@@ -250,10 +261,49 @@ router.post('/push-test', async (req, res) => {
       body: 'لو وصلتك هذه الرسالة فالإشعارات تعمل بشكل صحيح',
       data: { type: 'test' },
     });
-    return res.json(result);
+    let devices = null;
+    try {
+      const cd = await pool.query('SELECT COUNT(*)::int AS n FROM admin_devices');
+      devices = cd.rows[0].n;
+    } catch {
+      /* ignore */
+    }
+    return res.json({ ...result, devices });
   } catch (err) {
     console.error('admin push test:', err.message);
     return res.status(500).json({ message: 'Could not send test push' });
+  }
+});
+
+// POST /api/admin/broadcast { title, body } -> a custom message from the
+// admin to EVERY user: saved as an unread in-app notification for each
+// account (shows in the app's Notifications screen) and delivered as a
+// system push to all registered devices — even when the app is closed.
+router.post('/broadcast', async (req, res) => {
+  try {
+    const title = String((req.body || {}).title || '').trim();
+    const body = String((req.body || {}).body || '').trim();
+    if (!title || !body) {
+      return res.status(400).json({ message: 'Title and message are required' });
+    }
+    if (title.length > 80 || body.length > 500) {
+      return res.status(400).json({ message: 'Message too long (title 80 / message 500 chars max)' });
+    }
+    const ins = await pool.query(
+      `INSERT INTO notifications (user_id, type, title, body)
+       SELECT id, 'broadcast', $1, $2 FROM users`,
+      [title, body]
+    );
+    const notified = ins.rowCount || 0;
+    const push = await pushToAllUsers({
+      title,
+      body,
+      data: { type: 'broadcast', route: '/notifications' },
+    });
+    return res.json({ notified, ...push });
+  } catch (err) {
+    console.error('admin broadcast:', err.message);
+    return res.status(500).json({ message: 'Could not send broadcast' });
   }
 });
 

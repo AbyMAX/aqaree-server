@@ -142,4 +142,54 @@ async function pushToAdmins({ title, body, data }) {
   }
 }
 
-module.exports = { pushToUser, pushToAdmins, initFcm };
+// Broadcast to every registered end-user device (the main Aqaree app).
+// FCM accepts at most 500 tokens per multicast call, so large token sets
+// are sent in chunks. Dead tokens are pruned like in the other senders.
+async function pushToAllUsers({ title, body, data }) {
+  try {
+    const h = fcm();
+    if (!h) return { sent: 0, failed: 0, skipped: 'no-fcm-key' };
+    const { rows } = await pool.query('SELECT token FROM user_devices');
+    const tokens = rows.map((r) => r.token).filter(Boolean);
+    if (!tokens.length) return { sent: 0, failed: 0, skipped: 'no-tokens' };
+    const strData = {};
+    Object.entries(data || {}).forEach(([k, v]) => {
+      strData[k] = String(v);
+    });
+    let sent = 0;
+    let failed = 0;
+    const dead = [];
+    for (let i = 0; i < tokens.length; i += 500) {
+      const batch = tokens.slice(i, i + 500);
+      // eslint-disable-next-line no-await-in-loop
+      const res = await h.messaging.sendEachForMulticast({
+        tokens: batch,
+        notification: { title: String(title || ''), body: String(body || '') },
+        data: strData,
+      });
+      sent += res.successCount || 0;
+      failed += res.failureCount || 0;
+      (res.responses || []).forEach((r, j) => {
+        if (!r.success && r.error) {
+          const s = String(r.error.code || r.error.message || '');
+          if (/registration-token-not-registered|unregistered|invalid-argument|invalid-registration/i.test(s)) {
+            dead.push(batch[j]);
+          }
+        }
+      });
+    }
+    if (dead.length) {
+      try {
+        await pool.query('DELETE FROM user_devices WHERE token = ANY($1)', [dead]);
+      } catch {
+        /* pruning is best-effort */
+      }
+    }
+    return { sent, failed, devices: tokens.length };
+  } catch (err) {
+    console.error('pushToAllUsers:', err.message);
+    return { sent: 0, failed: 0, error: String(err.message).slice(0, 160) };
+  }
+}
+
+module.exports = { pushToUser, pushToAdmins, pushToAllUsers, initFcm };

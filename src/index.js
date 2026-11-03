@@ -171,6 +171,23 @@ if (process.env.DATABASE_URL) {
         platform   TEXT NOT NULL DEFAULT 'android',
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
+      // Broadcast support: every in-app notification can now carry a
+      // free-text title/body (admin messages with no property attached).
+      await pool.query(`CREATE TABLE IF NOT EXISTS notifications (
+        id            SERIAL PRIMARY KEY,
+        user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        actor_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        actor_name    TEXT NOT NULL DEFAULT '',
+        type          TEXT NOT NULL DEFAULT 'like',
+        property_id   INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        property_title TEXT NOT NULL DEFAULT '',
+        property_title_ar TEXT NOT NULL DEFAULT '',
+        is_read       BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, created_at DESC)');
+      await pool.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT ''");
+      await pool.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body TEXT NOT NULL DEFAULT ''");
       console.log('admin schema: ok');
     } catch (err) {
       console.error('admin schema:', err.message);

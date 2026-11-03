@@ -13,6 +13,9 @@ function shape(n) {
     propertyId: n.property_id,
     propertyTitle: n.property_title || '',
     propertyTitleAr: n.property_title_ar || '',
+    // Free-text title/body for admin broadcasts (empty for other types).
+    title: n.title || '',
+    body: n.body || '',
     read: !!n.is_read,
     createdAt: n.created_at,
   };
