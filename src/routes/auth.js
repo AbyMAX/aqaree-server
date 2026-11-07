@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db/pool');
 const { publicUser, signToken } = require('../auth');
 const { sendOtpEmail } = require('../mail');
+const { pushToAdmins } = require('../push');
 const { loginLimiter, registerLimiter, verifyLimiter, resendLimiter, googleLimiter } = require('../rateLimit');
 
 const router = express.Router();
@@ -30,13 +31,24 @@ router.post('/register', registerLimiter, async (req, res) => {
     // Real-estate offices register with an office name + a license document
     // (image URL) and stay unverified (verified=0) until an admin approves.
     const officeName = String((req.body || {}).officeName || '').trim().slice(0, 80);
-    const licenseImage = String((req.body || {}).licenseImage || '').slice(0, 500);
+    // Data-URL licenses (offline joins) are ~200k chars — the old 500-char
+    // slice corrupted them into unrenderable images in the admin panel.
+    const licenseImage = String((req.body || {}).licenseImage || '').slice(0, 600000);
 
     await pool.query(
       `INSERT INTO users (email, password_hash, name, email_verified, office_name, license_image)
        VALUES ($1, $2, $3, FALSE, $4, $5)`,
       [cleanEmail, hash, name, officeName, licenseImage]
     );
+    // Notify the admin apps right away so unverified office accounts get
+    // reviewed the same day, not whenever someone happens to open the panel.
+    if (officeName || licenseImage) {
+      pushToAdmins({
+        title: 'طلب توثيق مكتب عقاري',
+        body: `${officeName || cleanEmail} (${cleanEmail}) بانتظار اعتماد الترخيص`,
+        data: { type: 'office-verify', route: '#/users' },
+      }).catch(() => {});
+    }
     await pool.query('DELETE FROM otp_codes WHERE email = $1', [cleanEmail]);
     const code = otpCode();
     await pool.query(

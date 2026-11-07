@@ -116,13 +116,18 @@ router.get('/fcm-status', async (req, res) => {
 // GET /api/admin/stats -> table counts (+ pending moderation queue size).
 router.get('/stats', async (req, res) => {
   try {
-    const [[u], [p], [f], [pd]] = await Promise.all([
+    const [[u], [p], [f], [pd], [po]] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS n FROM users').then((r) => r.rows),
       pool.query('SELECT COUNT(*)::int AS n FROM properties').then((r) => r.rows),
       pool.query('SELECT COUNT(*)::int AS n FROM favorites').then((r) => r.rows),
       pool.query("SELECT COUNT(*)::int AS n FROM properties WHERE status = 'pending'").then((r) => r.rows),
+      // Office accounts still awaiting verification (registered with an
+      // office name and/or a license document, not yet approved).
+      pool.query(
+        "SELECT COUNT(*)::int AS n FROM users WHERE verified = 0 AND (COALESCE(office_name, '') <> '' OR COALESCE(license_image, '') <> '')"
+      ).then((r) => r.rows),
     ]);
-    return res.json({ users: u.n, properties: p.n, favorites: f.n, pending: pd.n });
+    return res.json({ users: u.n, properties: p.n, favorites: f.n, pending: pd.n, pending_offices: po.n });
   } catch (err) {
     console.error('admin stats:', err.message);
     return res.status(500).json({ message: 'Could not load stats' });
