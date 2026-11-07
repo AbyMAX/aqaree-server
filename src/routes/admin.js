@@ -65,6 +65,9 @@ function adminUser(row) {
     has_password: !!row.password_hash,
     google_linked: !!row.google_sub,
     listings_count: Number(row.listings_count) || 0,
+    office_name: row.office_name || '',
+    license_image: row.license_image || '',
+    verified: Number(row.verified) === 1,
   };
 }
 
@@ -162,6 +165,8 @@ router.put('/users/:id', async (req, res) => {
     if (body.name !== undefined) set('name', String(body.name).slice(0, 120));
     if (body.avatar !== undefined) set('avatar', String(body.avatar).slice(0, 500000));
     if (body.role !== undefined) set('role', String(body.role).slice(0, 40));
+    if (body.verified !== undefined) set('verified', body.verified ? 1 : 0);
+    if (body.office_name !== undefined) set('office_name', String(body.office_name || '').slice(0, 80));
     if (body.phone !== undefined) {
       const canon = String(body.phone || '').replace(/\D/g, '').replace(/^(249|0)/, '');
       if (canon) {
@@ -283,6 +288,8 @@ router.post('/broadcast', async (req, res) => {
   try {
     const title = String((req.body || {}).title || '').trim();
     const body = String((req.body || {}).body || '').trim();
+    // audience: 'all' (default) | 'verified' (admin-approved offices only).
+    const audience = String((req.body || {}).audience || 'all') === 'verified' ? 'verified' : 'all';
     if (!title || !body) {
       return res.status(400).json({ message: 'Title and message are required' });
     }
@@ -291,7 +298,7 @@ router.post('/broadcast', async (req, res) => {
     }
     const ins = await pool.query(
       `INSERT INTO notifications (user_id, type, title, body)
-       SELECT id, 'broadcast', $1, $2 FROM users`,
+       SELECT id, 'broadcast', $1, $2 FROM users ${audience === 'verified' ? 'WHERE verified = 1' : ''}`,
       [title, body]
     );
     const notified = ins.rowCount || 0;
@@ -299,6 +306,7 @@ router.post('/broadcast', async (req, res) => {
       title,
       body,
       data: { type: 'broadcast', route: '/notifications' },
+      verifiedOnly: audience === 'verified',
     });
     return res.json({ notified, ...push });
   } catch (err) {

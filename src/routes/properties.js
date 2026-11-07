@@ -93,7 +93,14 @@ function shapeProperty(row) {
     images: row.images || [],
     status: row.status || 'approved',
     owner: row.owner_id
-      ? { name: row.owner_name || '', avatar: row.owner_avatar || '', email: row.owner_email || '', role: row.owner_role || 'Landlord' }
+      ? {
+          name: row.owner_name || '',
+          avatar: row.owner_avatar || '',
+          email: row.owner_email || '',
+          role: row.owner_role || 'Landlord',
+          officeName: row.owner_office_name || '',
+          verified: Number(row.owner_verified) === 1,
+        }
       : undefined,
     createdAt: row.created_at,
   };
@@ -102,7 +109,8 @@ function shapeProperty(row) {
 const WITH_OWNER = `
   SELECT p.*,
          u.name AS owner_name, u.avatar AS owner_avatar,
-         u.email AS owner_email, u.role AS owner_role
+         u.email AS owner_email, u.role AS owner_role,
+         u.office_name AS owner_office_name, u.verified AS owner_verified
   FROM properties p LEFT JOIN users u ON u.id = p.owner_id`;
 
 // GET /api/properties?q=&sort=&min=&max=&type=&beds=&baths=&cur=

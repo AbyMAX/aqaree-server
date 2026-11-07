@@ -142,14 +142,17 @@ async function pushToAdmins({ title, body, data }) {
   }
 }
 
-// Broadcast to every registered end-user device (the main Aqaree app).
-// FCM accepts at most 500 tokens per multicast call, so large token sets
-// are sent in chunks. Dead tokens are pruned like in the other senders.
-async function pushToAllUsers({ title, body, data }) {
+// Broadcast to every registered end-user device (the main Aqaree app), or
+// only to devices of admin-verified offices. FCM accepts at most 500 tokens
+// per multicast call, so large token sets are sent in chunks. Dead tokens
+// are pruned like in the other senders.
+async function pushToAllUsers({ title, body, data, verifiedOnly }) {
   try {
     const h = fcm();
     if (!h) return { sent: 0, failed: 0, skipped: 'no-fcm-key' };
-    const { rows } = await pool.query('SELECT token FROM user_devices');
+    const { rows } = verifiedOnly
+      ? await pool.query('SELECT d.token FROM user_devices d JOIN users u ON u.id = d.user_id WHERE u.verified = 1')
+      : await pool.query('SELECT token FROM user_devices');
     const tokens = rows.map((r) => r.token).filter(Boolean);
     if (!tokens.length) return { sent: 0, failed: 0, skipped: 'no-tokens' };
     const strData = {};

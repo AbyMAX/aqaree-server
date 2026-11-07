@@ -195,6 +195,11 @@ if (process.env.DATABASE_URL) {
       await pool.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body TEXT NOT NULL DEFAULT ''");
       // Listing detail view counter (used by the app's "X views" chip).
       await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS views_count INTEGER NOT NULL DEFAULT 0');
+      // Verified real-estate offices: office name, uploaded license document
+      // (image URL), and an admin-controlled verified flag.
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS office_name TEXT NOT NULL DEFAULT ''");
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS license_image TEXT NOT NULL DEFAULT ''");
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS verified INTEGER NOT NULL DEFAULT 0');
       console.log('admin schema: ok');
     } catch (err) {
       console.error('admin schema:', err.message);

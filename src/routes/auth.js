@@ -27,11 +27,15 @@ router.post('/register', registerLimiter, async (req, res) => {
 
     const hash = await bcrypt.hash(String(password), 10);
     const name = cleanEmail.split('@')[0].replace(/[._-]+/g, ' ').trim() || 'Guest';
+    // Real-estate offices register with an office name + a license document
+    // (image URL) and stay unverified (verified=0) until an admin approves.
+    const officeName = String((req.body || {}).officeName || '').trim().slice(0, 80);
+    const licenseImage = String((req.body || {}).licenseImage || '').slice(0, 500);
 
     await pool.query(
-      `INSERT INTO users (email, password_hash, name, email_verified)
-       VALUES ($1, $2, $3, FALSE)`,
-      [cleanEmail, hash, name]
+      `INSERT INTO users (email, password_hash, name, email_verified, office_name, license_image)
+       VALUES ($1, $2, $3, FALSE, $4, $5)`,
+      [cleanEmail, hash, name, officeName, licenseImage]
     );
     await pool.query('DELETE FROM otp_codes WHERE email = $1', [cleanEmail]);
     const code = otpCode();

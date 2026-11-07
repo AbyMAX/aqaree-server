@@ -13,6 +13,10 @@ function publicUser(row) {
     role: row.role || 'Landlord',
     phone: row.phone || '',
     whatsapp: row.whatsapp || '',
+    // Real-estate office fields: admin-approved verification badge.
+    officeName: row.office_name || '',
+    licenseImage: row.license_image || '',
+    verified: Number(row.verified) === 1,
   };
 }
 
