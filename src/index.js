@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const pool = require('./db/pool');
 
 const app = express();
@@ -13,6 +14,9 @@ const PORT = process.env.PORT || 8000;
 // (rate limiting and logging depend on this).
 app.set('trust proxy', 1);
 app.use(cors({ origin: true }));
+// Gzip JSON responses: big listing lists shrink ~4-8x — the mobile app
+// loads noticeably faster on Sudanese mobile data.
+app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
